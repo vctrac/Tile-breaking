@@ -1,361 +1,84 @@
-lg = love.graphics
-screen = {w = love.graphics.getWidth(), h = love.graphics.getHeight()}
+local lg = love.graphics
 
-Timer = require "../library/HUMP.timer"
-local CAMERA = require "../library/HUMP.camera"
-local class = require "../library/classic"
+lg.setDefaultFilter("nearest", "nearest")
+math.randomseed(os.time())
+math.random()
+math.random()
+math.random()
+math.random()
 
-function math.clamp(min, val, max) return math.min(math.max(val, min), max) end
-function distance(x1,y1,x2,y2) return math.sqrt((x2 - x1) ^ 2 + (y2 - y1) ^ 2) end
-function box_collision( x1,y1,w1,h1, x2,y2,w2,h2)
-    return (x1+w1>x2 and x1<x2+w2 and y1+w1>y2 and y1<y2+h2)
-end
-function point_inside( px,py, x,y,w,h)
-    return (px>x and px<x+w and py>y and py<y+h)
-end
-bool_to_number={ [true]=1, [false]=0 }
-
-drawFilledRectangle = function(l,t,w,h, r,g,b)
-    lg.setColor(r,g,b,0.4)
-    lg.rectangle('fill', l,t,w,h)
-    lg.setColor(r,g,b)
-    lg.rectangle('line', l,t,w,h)
-end
--------------------------------------------------------------------------------------------------
--- local tiles_img = lg.newImage("jhonSmith.png")
-
-
-local bump = require "../library/bump"
-
-------------------------------------------------------------------------------------------------- 
---  ▄                 ▄▄▄▄▄▄▄▄▄▄▄       ▄▄▄▄▄▄▄▄▄▄        ▄▄▄▄▄▄▄▄▄▄▄       ▄           
--- ▐░▌               ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░▌      ▐░░░░░░░░░░░▌     ▐░▌          
--- ▐░▌               ▐░█▀▀▀▀▀▀▀█░▌     ▐░█▀▀▀▀▀▀▀█░▌     ▐░█▀▀▀▀▀▀▀▀▀      ▐░▌          
--- ▐░▌               ▐░▌       ▐░▌     ▐░▌       ▐░▌     ▐░▌               ▐░▌          
--- ▐░▌               ▐░█▄▄▄▄▄▄▄█░▌     ▐░█▄▄▄▄▄▄▄█░▌     ▐░█▄▄▄▄▄▄▄▄▄      ▐░▌          
--- ▐░▌               ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░▌      ▐░░░░░░░░░░░▌     ▐░▌          
--- ▐░▌               ▐░█▀▀▀▀▀▀▀█░▌     ▐░█▀▀▀▀▀▀▀█░▌     ▐░█▀▀▀▀▀▀▀▀▀      ▐░▌          
--- ▐░▌               ▐░▌       ▐░▌     ▐░▌       ▐░▌     ▐░▌               ▐░▌          
--- ▐░█▄▄▄▄▄▄▄▄▄      ▐░▌       ▐░▌     ▐░█▄▄▄▄▄▄▄█░▌     ▐░█▄▄▄▄▄▄▄▄▄      ▐░█▄▄▄▄▄▄▄▄▄ 
--- ▐░░░░░░░░░░░▌     ▐░▌       ▐░▌     ▐░░░░░░░░░░▌      ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░░▌
---  ▀▀▀▀▀▀▀▀▀▀▀       ▀         ▀       ▀▀▀▀▀▀▀▀▀▀        ▀▀▀▀▀▀▀▀▀▀▀       ▀▀▀▀▀▀▀▀▀▀▀ 
-
-local Notification = class:extend()
-function Notification:new( txt, duration)
-    self.txt = txt
-    -- self.y = y
-    -- self.w = screen.w
-    -- self.h = 30
-    self.duration = duration
-end
-function Notification:draw( )
-    lg.setColor(0,0,0)
-    lg.rectangle('fill',0, self.y-self.h*0.25,self.w,self.h)
-    lg.setColor(1,1,1)
-    lg.rectangle('line',-2, self.y-self.h*0.25,self.w+4,self.h)
-    lg.printf( self.txt, 0, self.y, self.w, "center")
-end
-local Label = {
-    life = 1,
-    txt = ' ',
-}
-Label.new = function( self, txt, duration)
-    
-end
-Label.update = function(self, dt)
-    local dead
-    for n,s in ipairs(self.stack) do
-        s.duration = s.duration - dt
-        if s.duration<=0 then
-            dead = n
-        else
-            if (n==1 and s.y>self.min_y) or (n>1 and s.y>self.stack[n-1].y+self.stack[n-1].h+self.spacing) then
-                local df = n==1 and (s.y-self.min_y) or s.y-(self.stack[n-1].y+self.stack[n-1].h+self.spacing)
-                s.y = s.y - math.max(1, df)*self.speed*dt
-            end
-        end
-    end
-    if #self.stack>5 then dead = 1 end
-    if dead then table.remove( self.stack, dead) end
-end
-Label.draw = function(self)
-    for n,s in ipairs(self.stack) do
-        s:draw()
-    end
-end
-
-
--------------------------------------------------------------------------------------------------
-
-local progress_bar = class:extend()
-function progress_bar:new(  x, y, w, h, c1, c2)
-    self.x = x
-    self.y = y
-    self.w = w
-    self.h = h
-    self.v = w
-    self.bc = c1 or {0.6,0,0,1}
-    self.fc = c2 or {1,0,0,1}
-end
-function progress_bar:draw(v,v_max)
-    local var = math.max(0, v/v_max*self.w)
-    lg.setColor(self.bc)
-    if self.v~=var then
-        self.v = self.v + (var-self.v)*0.02
-    end
-    lg.rectangle('fill',self.x, self.y, self.v, self.h )
-    lg.setColor(self.fc)
-    lg.rectangle('line',self.x, self.y, self.w, self.h )
-    lg.rectangle('fill',self.x, self.y, var, self.h )
-end
-
-
-------------------------------------------------------------------------------------------------- TODO
---  ▄▄▄▄▄▄▄▄▄▄▄       ▄▄▄▄▄▄▄▄▄▄▄       ▄▄▄▄▄▄▄▄▄▄▄       ▄▄       ▄▄       ▄▄▄▄▄▄▄▄▄▄▄ 
--- ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░░▌     ▐░░▌     ▐░░▌     ▐░░░░░░░░░░░▌
---  ▀▀▀▀█░█▀▀▀▀       ▀▀▀▀█░█▀▀▀▀      ▐░█▀▀▀▀▀▀▀▀▀      ▐░▌░▌   ▐░▐░▌     ▐░█▀▀▀▀▀▀▀▀▀ 
---      ▐░▌               ▐░▌          ▐░▌               ▐░▌▐░▌ ▐░▌▐░▌     ▐░▌          
---      ▐░▌               ▐░▌          ▐░█▄▄▄▄▄▄▄▄▄      ▐░▌ ▐░▐░▌ ▐░▌     ▐░█▄▄▄▄▄▄▄▄▄ 
---      ▐░▌               ▐░▌          ▐░░░░░░░░░░░▌     ▐░▌  ▐░▌  ▐░▌     ▐░░░░░░░░░░░▌
---      ▐░▌               ▐░▌          ▐░█▀▀▀▀▀▀▀▀▀      ▐░▌   ▀   ▐░▌      ▀▀▀▀▀▀▀▀▀█░▌
---      ▐░▌               ▐░▌          ▐░▌               ▐░▌       ▐░▌               ▐░▌
---  ▄▄▄▄█░█▄▄▄▄           ▐░▌          ▐░█▄▄▄▄▄▄▄▄▄      ▐░▌       ▐░▌      ▄▄▄▄▄▄▄▄▄█░▌
--- ▐░░░░░░░░░░░▌          ▐░▌          ▐░░░░░░░░░░░▌     ▐░▌       ▐░▌     ▐░░░░░░░░░░░▌
---  ▀▀▀▀▀▀▀▀▀▀▀            ▀            ▀▀▀▀▀▀▀▀▀▀▀       ▀         ▀       ▀▀▀▀▀▀▀▀▀▀▀ 
-                                                                                     
-
-
-local gravity = 10
--- local item_size = v2(32,16)
-
-local placed_itens = class:extend()
-function placed_itens:new(name,x,y)
-    self.x, self.y = x,y
-    self.name = name
-    self.mouse_action = 'collectable'
-    self.gx, self.gy = GAME.map:world_to_grid( x+1, y+1)
-end
-
-function placed_itens:remove(mx, my)
-    local t = GAME.map:get_tile( self.gx, self.gy)
-    t.item = nil
-end
-
-local torch = placed_itens:extend()
-function torch:new( name,x,y)
-    torch.super.new( self, name, x, y)
-    self.use = true
-    GAME.map:add_light( self.gx, self.gy, 0.9, {1,1,0.8})
-end
-function torch:grab(mx, my)
-    self.gx, self.gy = GAME.map:world_to_grid( mx, my)
-    local t = GAME.map:remove_light( self.gx,self.gy)
-    self.g = true
-end
-function torch:remove( )
-    GAME.map:remove_light( self.gx,self.gy)
-    print('light source removed')
-end
-function torch:drop(mx, my)
-    local gx, gy = GAME.map:world_to_grid( mx, my)
-    local tile = GAME.map:get_tile( gx, gy)
-
-    if tile.id == 'air' and not tile.item then
-        self.gx, self.gy = gx, gy
-        tile.item = true
-        self.g = false  
-        local t = GAME.map:add_light( gx, gy)
-        self.x, self.y = GAME.map:grid_to_world(t.x, t.y)
-        t.item = true
-    end
-end
-
-
-local blocker = placed_itens:extend()
-function blocker:new( name,x,y)
-    blocker.super.new( self, name, x, y)
-    self.is_map_obj = true
-    -- self.use = true
-    local t = GAME.map:insert_tile( self.gx, self.gy, 'blocker')
-    self.fail = not (t)
-end
-
-local bomb = placed_itens:extend()
-function bomb:new( name,x,y)
-    bomb.super.new( self, name, x, y)
-    self.mouse_action = 'empty'
-    -- self.use = true
-end
-function bomb:remove()
-    -- self:action(0)
-end
-function bomb:action( time)
-    Timer.after((time or 2.8),function() GAME.map:add_light( self.gx, self.gy, 1, {1,1,0.8}) end)
-    Timer.after(3,function()
-        self:explode()
-        GAME.map:remove_light( self.gx,self.gy)
-        GAME.sfx.explosion:play()
-    end)
-end
-function bomb:explode()
-    for y=-1,1 do
-        for x=-1,1 do
-            local i = GAME.delete_item_from_map( self.gx+x, self.gy+y)
-            -- i.dead = true
-            local t = GAME.map:break_tile(self.gx+x, self.gy+y)
-        end
-    end
-    self.dead = true
-end
-
-local item_list = {
-    torch = torch,
-    blocker = blocker,
-    bomb = bomb
+require("../LIBRARY/Math")
+require("util")
+Lib = {
+    timer = require "../LIBRARY/HUMP.timer",
+    camera = require "../LIBRARY/HUMP.camera",
+    class = require "../LIBRARY/classic",
+    vec = require "../LIBRARY/HUMP/vector",
+    bump = require "../LIBRARY/bump",
 }
 
+-- local Shadows = require("shadows")
+-- local LightWorld = require("shadows.LightWorld")
 
-
-local function item_draw( item)
-
-    -- lg.setColor( 0.3,0.3,0.3)
-    -- lg.rectangle("fill", item.x, item.y, 32, 32)
-    lg.setColor( 1,1,1)
-    lg.draw( GAME.img.tileset, GAME.quads.items[item.name], item.x, item.y)
-    -- lg.print( item.name, item.x, item.y)
-end
-
-local item_handler = {
-    visible_itens = {},
-    map_grid = {},
-    init = function( self, map)
-
+Camera = Lib.camera(0,0, 1)
+Screen = {
+    w = lg.getWidth(),
+    h = lg.getHeight(),
+    center = Lib.vec(lg.getWidth(), lg.getHeight())*0.5,
+    center2world = Lib.vec(lg.getWidth(), lg.getHeight())*0.5,
+    set = function( w, h)
+        Screen.w = w
+        Screen.h = h
+        Screen.center = Lib.vec(w,h)*0.5
+        Screen.center2world = Lib.vec(Camera:worldCoords(Screen.center:unpack()))
     end,
-    add = function( self, item, x, y) --world coordinates
-        local gx,gy = GAME.map:world_to_grid( x, y)
-        local tile = GAME.map:get_tile( gx, gy)
-        if tile.id == 'air' and not tile.item then
-            local item_new = (item_list[item] or placed_itens)( item, GAME.map:grid_to_world( gx, gy))
-            if item_new.fail then goto fail end
-            if item_new.is_map_obj then goto skip end
-            table.insert( self.visible_itens, item_new)
-            -- tile = GAME.map:get_tile( gx, gy)
-            -- tile.item = item
-            ::skip::
-            return item_new
-        end
-        ::fail::
-        return false
-    end,
-    remove = function( self, item)
-        local tile = GAME.map:get_tile( item.gx, item.gy)
-        if tile.id == 'air' then
-            item:remove()
-            table.remove( self.visible_itens, item)
-            local tile = GAME.map:get_tile( item.gx, item.gy)
-            
-            tile.item = false
-        end
-    end,
-    get_in_grid = function( self, gx, gy)
-        for i,k in ipairs(self.visible_itens) do
-            if not k.dead and k.gx==gx and k.gy==gy then
-                return k
-            end
-        end
-        return false
-    end,
-    get_in_units = function( self, x,y)
-        for i,k in ipairs(self.visible_itens) do
-            if not k.dead and point_inside( x, y, k.x, k.y, GAME.map.tile_size, GAME.map.tile_size) then
-                return k
-            end
-        end
-        return false
-    end,
-    draw = function(self, dt)
-        lg.setColor(1,1,1)
-        for i,k in ipairs(self.visible_itens) do
-            -- if not k.map then
-            item_draw(k)
-            -- end
-        end
-    end,
-    update = function(self, obj, dt)
-        local dead = 0
-        for i,k in ipairs(self.visible_itens) do
-            -- if k.on_air then
-            --     k.y = k.y +gravity*dt
-            -- end
-            if k.g then
-                k.x, k.y = obj.x-GAME.map.tile_size_half, obj.y-GAME.map.tile_size_half
-            end
-            if k.dead then
-                dead = i
-            end
-        end
-        if dead>0 then
-            local it = table.remove( self.visible_itens, dead)
-            it:remove()
-            -- local tile = GAME.map:get_tile( it.gx, it.gy)
-            -- tile.item = false
-        end
-    end,
-    mousepressed = function(self, x, y, b)
-        if b == 1 then
-            for i,k in ipairs(self.visible_itens) do
-                if point_inside( x, y, k.x, k.y, GAME.map.tile_size, GAME.map.tile_size) then
-                    if k.g then
-                        k:drop(x,y)
-                    else
-                        k:grab(x,y)
-                    end
-                    return
-                end
-            end
-        end
-    end,
+    PointInside = function(px,py)
+        return PointInside( px,py, 0, 0, Screen.w, Screen.h)
+    end
 }
-
-------------------------------------------------------------------END storage
-local number_var = class:extend()
-function number_var:new( name, v, min, max)
-    self.name = name
-    self.v = v
-    self.min = min or -math.huge
-    self.max = max or math.huge
-end
-function number_var:add( v)
-    self.v = math.clamp(self.min, self.v + v, self.max)
-end
 
 local RES = require 'res'
 
-GAME = {}
+GAME = {
+    tile_size = 32,
+    half_tile = 16,
+    map_w = 32,
+    map_h = 64,
+}
 GAME.img = RES.img
 GAME.quads = RES.quads
 GAME.sfx = RES.sfx
 GAME.font = RES.font
-GAME.world = bump.newWorld(64)
-
+GAME.world = Lib.bump.newWorld(64)
+GAME.canvas = lg.newCanvas(GAME.map_w*GAME.tile_size,GAME.map_h*GAME.tile_size)
+-- GAME.LightWorld = LightWorld:new()
 local drops = require 'item_drops'
-local MOUSE = require 'mouse'
+local Mouse = require 'Mouse'
 local MAP = require 'map'
+local SandBox = require 'SandBox'
+local blurShader1 = love.graphics.newShader("blur1.fs")
+require 'light'
 local Storage = require 'storage'
+local Bat = require 'bat'
 
--- GAME.cash = number_var(cash, 0)
+local Entities = {}
+------------------------------------------------------------------------------------------------- TODO
+
 function GAME.drop_item( item, x, y)
     print( item ..' was dropped at '..x..', '..y)
     drops:add( item, x, y)
 end
-function GAME.use_item( x, y)
+function GAME.use_item( gx, gy)
     local item = Storage:get_item()
     if item then
-        -- GAME.drop_item(item, x, y)
-        local ih = item_handler:add( item, x, y)
-        if ih then
-            if ih.action then ih:action() end
-            Storage:remove( item)
+        local sx,sy = GAME.map:grid_to_world( gx, gy)
+        local tile = GAME.map:get_tile( gx, gy)
+        if tile and tile.id == 'air' then
+            local ih = drops:add_fixed( item, sx, sy)
+            if ih then
+                if ih.action then ih:action() end
+                Storage:remove( item)
+            end
         end
     end
 end
@@ -383,26 +106,50 @@ function GAME.has_item( x, y)
 end
 function GAME.whats_here(x,y,gx, gy)
     local i,t
-    -- local tid = 
-    local tid = GAME.map.get_name( GAME.map:get_tile_id( gx, gy))
+    local tile = GAME.map:get_tile(gx,gy)
+    -- local tid = GAME.map.get_name( tile.id)
 
-    if tid=='air' then
+    if tile.id=='air' then
         local item = drops:get_at(x, y)
         -- print(x, y)
         if item then
             i=item
             t='item'
         else
-            i={id = tid, type ='empty'}
+            i={id = tile.id, type ='empty'}
             t='air'
         end
-    else
-        i = {id = tid, type = (GAME.map.is_breakable(tid) and GAME.map.is_solid(tid)) and 'breakable' or 'empty'}
+    elseif GAME.world:hasItem(tile) then
+        i = {id = tile.id, type = GAME.map.is_breakable(tile.id) and 'breakable' or 'empty'}
         t = 'block'
+    else
+        i = {id = tile.id, type = 'dark'}
+        t = 'null'
     end
     return i,t
 end
+GAME.update_lights = function( )
+    Light.update()
+end
+GAME.break_tile = function(x,y)
+    local t = GAME.map:get_tile(x,y)
+    local solid = GAME.map.is_solid(t.id)
+    local color = GAME.map.get_color(t.id)
 
+    -- Light.update()
+    if GAME.map:break_tile(x,y) then
+        Light.update()
+        GAME.map:update_canvas()
+        SandBox:update_quads(x, y)
+        if solid then
+            for _=1,math.random(8,32) do
+                SandBox:add("dust",x*GAME.tile_size-GAME.half_tile,y*GAME.tile_size-GAME.half_tile, {color = color})
+            end
+            -- Light.update()
+            -- print("light update")
+        end
+    end
+end
 
 -- local function my_stencil()
 --     love.graphics.circle("fill", 225, 200, 350, 300)
@@ -418,96 +165,193 @@ end
 -- ▐░▌       ▐░▌     ▐░▌       ▐░▌      ▄▄▄▄█░█▄▄▄▄      ▐░▌     ▐░▐░▌
 -- ▐░▌       ▐░▌     ▐░▌       ▐░▌     ▐░░░░░░░░░░░▌     ▐░▌      ▐░░▌
 --  ▀         ▀       ▀         ▀       ▀▀▀▀▀▀▀▀▀▀▀       ▀        ▀▀ 
-                                                                   
+-- local g3d = require "g3d"
+-- local tile3d = g3d.newModel("res/obj/cube.obj", "res/img/moon.png", {0,0,0})
+local lights_on = true
+local time = 0
+local layers_num = 4
+local depth_3D = -0.004
+local BackgroundImage
 function love.load()
-    GAME.map = MAP:new( 48, 256)
-    
-    mouse = MOUSE( )
-    for i=1,10 do
-        Storage:add({use = true, name='torch'}, true)
-        Storage:add({use = true, name='blocker'}, true)
-        Storage:add({use = true, name='bomb'}, true)
+    --Initialize Map dimensions
+    GAME.map = MAP:new( GAME.map_w, GAME.map_h)
+
+    --Initialize Sandbox
+    SandBox:init( GAME.map_w, GAME.map_h)
+    for _,s in pairs( GAME.map.units) do
+        SandBox:update_quads(s.x, s.y, GAME.map.is_solid(s.id))
+    end
+
+    --Initialize shaders based on Map dimensions
+    blurShader1:send("Width", GAME.map_w*GAME.tile_size)
+    blurShader1:send("Height", GAME.map_h*GAME.tile_size)
+
+    --Initialize Dark layer
+    Light.init(GAME.map_w, GAME.map_h, GAME.tile_size)
+    Light.add_sky(1, 1.1)
+
+    --Initialize Mouse and mouse_grid
+    Mouse.init(GAME.map_w, GAME.map_h, GAME.tile_size)
+    for _=1,10 do
+        Storage:add({use = true, name='light'}, true)
+        -- Storage:add({use = true, name='blocker'}, true)
+        -- Storage:add({use = true, name='bomb'}, true)
     end
     
-    GAME.camera = CAMERA(mouse.camera_x, mouse.y, 2)
-    GAME.camera.cam_speed = {
-        mouse = function( ) return math.floor((mouse.camera_x - GAME.camera.x)*0.1), math.floor((mouse.camera_y - GAME.camera.y)*0.1) end
+    Camera.speed = 2
+    Camera.x_vel = 0
+    Camera.y_vel = 0
+    Camera.follow = {
+        -- player = function( dt)
+        --     Camera.x_vel = Camera.x_vel+Camera.speed*dt
+        --     Camera.y_vel = Camera.y_vel+Camera.speed*dt
+        --     local nx = (Player.x-Camera.x+8)*Camera.x_vel*dt
+        --     local ny = (Player.y-Camera.y+8)*Camera.y_vel*dt
+        --     if math.abs(nx)<0.01 then nx=0 Camera.x_vel = 2 end
+        --     if math.abs(ny)<0.01 then ny=0 Camera.y_vel = 2 end
+        --     if nx==0 and ny==0 then
+                
+        --     end
+        --     return nx,ny
+        -- end,
+        mouse = function( dt) return math.floor((Mouse.camera_x - Camera.x)*dt), math.floor((Mouse.camera_y - Camera.y)*dt) end
     }
-    GAME.camera.focus = mouse.id
-    GAME.camera:set_boundaries( 0, GAME.map.w, 0,GAME.map.h)
+    -- Camera.focus = "mouse"
+    Camera.focus = "mouse"
+    -- Camera:set_boundaries( 0, GAME.map.w, 0,GAME.map.h)
     
     -- lg.setBackgroundColor(0.1,0.25,0.6)
     -- lg.setDefaultFilter("nearest", "nearest")
-
-    GAME.map:add_sun( math.floor(GAME.map.w/64),1,1.09,{1,1,1}) --the fucking sun
+    BackgroundImage = GradientMesh("vertical", {0.2,0.75,0.85}, {0,0.3,0.55})
+    -- GAME.map:add_sun( math.floor(GAME.map.w/64),1,1,{1,1,1}) --the fucking sun
+    GAME.map:update_canvas()
+    -- GAME.world:add(player, player.x, player.y, player.w, player.h)
+    -- myShader = love.graphics.newShader("blur.fs")
+    -- myShader = love.graphics.newShader("shader.fs")
+    -- Bloom = require"glow"()
     -- update_lights( )
 end
 function love.update( dt)
-    
-    mouse:update( dt)
-    GAME.camera:move( GAME.camera.cam_speed[ GAME.camera.focus]( ))
-
+    time = time+dt
+    blurShader1:send("time", 1.4+math.sin(time*2)*0.1)
+    -- GAME.LightWorld:update(dt)
+    Mouse.update( dt)
+    -- item_handler:update(dt)
+    -- Camera:move( Camera.follow[ Camera.focus]( dt))
+    -- GAME.world:update(dt)
+    -- local mx,my = Mouse.x, Mouse.y
+    -- if time>0.1 then
+    --     if love.keyboard.isDown('1') then
+    --         for _=1,math.random(10) do
+    --             SandBox:add("sand",mx,my)
+    --         end
+    --     elseif love.keyboard.isDown('2') then
+    --         for _=1,math.random(10) do
+    --             SandBox:add("water",mx,my)
+    --         end
+    --     end
+    --     time = 0
+    -- end
+    if #Entities>0 then
+        for _,e in ipairs(Entities) do
+            e:update(dt)
+        end
+    end
+    -- g3d.camera.firstPersonMovement(dt)
+    SandBox:update( dt)
     drops:update( dt)
     Storage:update( dt)
-    Timer.update( dt)
+    -- Player.update(dt)
+    Lib.timer.update( dt)
 end
 function love.draw()
-    
-    GAME.camera:attach()
-
-    for u=1,16 do
-        lg.setColor(0.1,0.5,1, 0.2+u/20)
-        lg.rectangle('fill',0, (u-1)*32, GAME.map.w, 32 )
-    end
-    lg.setColor(1,1,1,0.5)
-    lg.draw(GAME.img.sky, 0, 0)
-    -- lg.draw(GAME.img.sky, 960, 0)
-
-    GAME.map:draw( GAME.camera:worldCoords(0,0))
-
-    drops:draw( )
-    
-    -- local visibleThings, len = GAME.world:queryRect(0,0,screen.w,screen.h)
-    -- for i=1, len do
-    --     drawFilledRectangle( (-1+visibleThings[i].x)*32, (-1+visibleThings[i].y)*32, visibleThings[i].w,visibleThings[i].h, 1,1,0)
-    -- end
-
-    mouse:draw()
-
-
-    GAME.map:draw_light( GAME.camera:worldCoords(0,0))
-
-    -- local hgs = GAME.map.grid_size/2
-    -- for n,s in pairs(GAME.map:get_lights()) do
-    --     local x,y = GAME.map:grid_to_world( s.id)
-    --     lg.setColor(s.c)
-    --     lg.circle( "fill", x+hgs, y+hgs, 6,8)
-    -- end
-    GAME.camera:detach()
-
-   
     lg.setColor(1,1,1)
-    -- lg.print( "x "..mouse.x, 100,100)
-    -- lg.print( "y "..mouse.y, 100,120)
-    -- lg.print( 'y '..GAME.camera.y, 10,20)
-    lg.print( mouse:get_state(), 10, screen.h-20)
-    Storage:draw()
-    mouse:draw_hud()
-    -- lg.print( GAME.cash.v, 10, screen.h-40)
-    -- lg.print( math.ceil( mouse.tile_hp), 10, screen.h-60)
+    lg.draw(BackgroundImage,0,0,0,Screen.w, Screen.h)
+    
+    Camera:attach()
+    local wx,wy = Camera:worldCoords(Screen.center.x, Screen.center.y)
+    local cx,cy = GAME.map.center.x,GAME.map.center.y
 
-    -- local mx,my = GAME.map:grid_to_world( mouse:get_grid_position())
-    -- lg.print(  mx..' / '.. my, 10,40)
-    -- lg.print( 'ymin '..camera.boundaries.y_min, 10,50)
+    for i=layers_num,1,-1 do
+        
+        local depth = depth_3D*i*Camera.scale
+        local sc = 1+depth
+        local dx = (wx-cx)*depth
+        local dy = (wy-cy)*depth
+        local rgb = 1-i*0.1
+        local xx = cx-dx
+        local yy = cy-dy
+        
+        if i==layers_num then
+            lg.setColor(0.2,0.2,0.2)
+            lg.draw( GAME.map.dark_canvas,xx,yy,0,sc,sc,cx, cy)
+        else
+            lg.setColor(rgb,rgb,rgb)
+            lg.draw( GAME.map.light_canvas,xx,yy,0,sc,sc,cx, cy)
+        end
+    end
+    lg.setColor(1,1,1)
+    lg.draw( GAME.map.canvas)
+    lg.draw( GAME.map.sprite_canvas)
+    
+    -- Player.draw()
+    
+    if _DEBUG then
+        local visibleThings, len = GAME.world:getItems()
+        for i=1, len do
+            local xx = visibleThings[i].x
+            local yy = visibleThings[i].y
+            local ww = visibleThings[i].w or GAME.tile_size
+            local hh = visibleThings[i].h or GAME.tile_size
+
+            if visibleThings[i].id then
+                xx = xx*GAME.tile_size-GAME.tile_size
+                yy = yy*GAME.tile_size-GAME.tile_size
+            end
+            Rectangle.outline( xx,yy, ww,hh, {0,0.7,1})
+        end
+    end
+    SandBox:draw()
+    drops:draw()
+    if #Entities>0 then
+        for _,e in ipairs(Entities) do
+            e:draw()
+        end
+    end
+    Mouse.draw()
+    if lights_on then
+        --apply blur shader over light layer
+        lg.setShader(blurShader1)
+        Light.draw()
+        lg.setShader()
+    end
+    -- lg.setShader(myShader)
+    -- GAME.map:draw_light()
+    -- lg.setShader()
+    -- Light:draw()
+    -- lg.setColor(0,0.5,1)
+    -- lg.rectangle("fill", player.x, player.y, player.w, player.h)
+
+    Camera:detach()
+
+    lg.setColor(1,1,1)
+    lg.print( "x "..Mouse.grid_position.x, 100,100)
+    lg.print( "y "..Mouse.grid_position.y, 100,120)
+    -- lg.print( 'y '..Camera.y, 10,20)
+    lg.print( Mouse.get_state(), 10, Screen.h-20)
+    Storage:draw()
+    Mouse.draw_hud()
+    -- tile3d:draw()
 
     ---HUD
-    lg.print("FPS: "..tostring(love.timer.getFPS( )), screen.w - 70, 10)
+    -- lg.print("FPS: "..tostring(love.timer.getFPS( )), Screen.w - 70, 10)
+    -- lg.print("time: "..tostring(1.4+math.sin(time*2)*0.1), Screen.w - 70, 10)
     -- lg.setColor(0.1,0.25,0.6)
-    -- lg.rectangle('fill',20, screen.h - 60, char.max_hp*0.2, 20 )
+    -- lg.rectangle('fill',20, Screen.h - 60, char.max_hp*0.2, 20 )
     -- lg.setColor(1,0.2,0)
 
-    -- lg.rectangle('line',20, screen.h - 60, char.max_hp*0.2, 20 )
-    -- lg.rectangle('fill',20, screen.h - 60, char.hp:get()*0.2, 20 )
+    -- lg.rectangle('line',20, Screen.h - 60, char.max_hp*0.2, 20 )
+    -- lg.rectangle('fill',20, Screen.h - 60, char.hp:get()*0.2, 20 )
 end
 
 -------------------------------------------------------------------------------------------------
@@ -524,41 +368,54 @@ end
 --  ▀▀▀▀▀▀▀▀▀▀▀       ▀        ▀▀       ▀                 ▀▀▀▀▀▀▀▀▀▀▀            ▀      
                                                                                      
 function love.keypressed(key, scancode, isrepeat)
-    -- if key == "k" then
-    --     item_handler:add("torch", mouse.x, mouse.y)
-    -- end
+    if key == "o" then
+        table.insert(Entities, Bat(Mouse.x, Mouse.y))
+    end
+    if key == "l" then
+        lights_on = not lights_on
+    end
     if key == "h" then
         local d = ({ 'coal', 'stone', 'iron', 'gold'})[math.random(4)]
-        local x,y = GAME.map:grid_to_world(mouse:get_grid_position())
+        local x,y = GAME.map:grid_to_world(Mouse.get_grid_position())
         GAME.drop_item(d, x, y)
         -- local r = math.random(2,6)
         -- Label:new("used: health potion", 2)
 
     end
-    if key == "l" then
-        -- local r = math.random(2,6)
-        -- Label:new("you just ate meat", 2)
-        -- set_light_emiter(10,1,1.4)
+    if key == "f" then
+        love.window.setVSync( love.window.getVSync()==1 and 0 or 1 )
+    end
+    if key == "f2" then
+        _DEBUG = not _DEBUG
         
-        -- print(t)
+        print("debug is",_DEBUG)
     end
     if key == "escape" then
        love.event.quit()
     end
-    mouse:key_pressed( key )
+    Mouse.key_pressed( key )
 end
 function love.keyreleased(key, scancode, isrepeat)
-    mouse:key_released( key )
+    Mouse.key_released( key )
 end
 --  
 function love.wheelmoved(x, y)
-    mouse:wheelmoved(x, y)
+    Mouse.wheelmoved(x, y)
 end
+-- function love.mousemoved(x,y, dx, dy)
+--     g3d.camera.firstPersonLook(dx,dy)
+-- end
 function love.mousepressed( x, y, button, istouch, presses )
-    mouse:pressed( x, y, button)
-    local wx,wy = GAME.camera:worldCoords(x,y)
+    Mouse.pressed( x, y, button)
+    local wx,wy = Camera:worldCoords(x,y)
     -- item_handler:mousepressed( wx, wy, button)
 end
 function love.mousereleased( x, y, button, istouch, presses )
-    mouse:released( x, y, button)
+    Mouse.released( x, y, button)
+end
+
+function love.resize(w, h)
+    print(("Window resized to width: %d and height: %d."):format(w, h))
+    Screen.set(w,h)
+    Storage.resize_screen(w,h)
 end

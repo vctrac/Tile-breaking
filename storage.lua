@@ -9,7 +9,7 @@
 --  ▄▄▄▄▄▄▄▄▄█░▌     ▐░▌     ▐░█▄▄▄▄▄▄▄█░▌▐░▌      ▐░▌ ▐░▌       ▐░▌▐░█▄▄▄▄▄▄▄█░▌▐░█▄▄▄▄▄▄▄▄▄ 
 -- ▐░░░░░░░░░░░▌     ▐░▌     ▐░░░░░░░░░░░▌▐░▌       ▐░▌▐░▌       ▐░▌▐░░░░░░░░░░░▌▐░░░░░░░░░░░▌
 --  ▀▀▀▀▀▀▀▀▀▀▀       ▀       ▀▀▀▀▀▀▀▀▀▀▀  ▀         ▀  ▀         ▀  ▀▀▀▀▀▀▀▀▀▀▀  ▀▀▀▀▀▀▀▀▀▀▀ 
-
+local lg = love.graphics
 -- local storage_scale = 0
 local old_txt = ''
 local item_counter = 1
@@ -77,12 +77,16 @@ local mouse_wheel = 1
 local mouse_wheel_counter = 0
 local arrow_y = 1
 local img_h = GAME.img.hud_arrow:getHeight()
+local belt_slots = 4
+local slot_size = 64
+local belt_pos_x = Screen.center.x-slot_size*(belt_slots*0.5)
+local belt_pos_y = Screen.h-70
 
-return {
+local storage = {
     itens = {},
     usable = {},
     -- roll = 1,
-    x = screen.w - 38, y = screen.h-38,
+    x = Screen.w - 38, y = Screen.h-38,
     scale = 2,
     labels = {},
     itens_count = 0,
@@ -107,13 +111,14 @@ return {
         item_label:set( item)
         
         self.scale = 2.5
-        Timer.tween(1, self, {scale = 2}, 'out-elastic')
+        Lib.timer.tween(1, self, {scale = 2}, 'out-elastic')
         GAME.sfx.pickup:play()
 
     end,
     get_item = function( self)
         -- print(arrow_y)
         if (arrow_y>0) and self.usable[arrow_y] then
+            -- print( self.usable[arrow_y].name)
             return self.usable[arrow_y].name
         end
         return false
@@ -131,20 +136,20 @@ return {
     update = function( self, dt)
         item_label:update( dt)
         local mx, my = love.mouse.getPosition()
-        mouse_hover = point_inside( mx, my, self.x-32, self.y-32, 64, 64)
+        mouse_hover = PointInside( mx, my, self.x-32, self.y-32, 64, 64)
 
-        if mouse.wheel ~= mouse_wheel then
-            mouse_select = true
-            mouse_wheel = mouse.wheel
-            mouse_wheel_counter = 1
-            arrow_y = 1+mouse_wheel%(#self.usable)
-            -- if #self.usable>0 then
-            --     print( self.usable[arrow_y].name)
-            -- end
-        else
-            mouse_wheel_counter = math.max( 0, mouse_wheel_counter -dt)
-            if mouse_wheel_counter==0 then mouse_select = false end
-        end
+        -- if Mouse.wheel ~= mouse_wheel then
+        --     mouse_select = true
+        --     mouse_wheel = Mouse.wheel
+        --     mouse_wheel_counter = 1
+        --     arrow_y = 1+mouse_wheel%(#self.usable)
+        --     if #self.usable>0 then
+        --         print( self.usable[arrow_y].name)
+        --     end
+        -- else
+        --     mouse_wheel_counter = math.max( 0, mouse_wheel_counter -dt)
+        --     if mouse_wheel_counter==0 then mouse_select = false end
+        -- end
         -------------------------------------------------------TODO mouse selected item list roll
     end,
     draw = function( self)
@@ -163,24 +168,36 @@ return {
                 ::next::
             end
         end
-        if mouse_select then
-            -- local n = 0
-            local hts = math.ceil((#self.usable)*0.5)
-            for n,k in ipairs(self.usable) do
-                -- n = n+1
-                
-                local img = self.itens[k.name].img
-                local w = img:getWidth()
-                -- local h = img_h
-                
-                local xx = arrow_y ==n and 46 or 54
-
-                lg.draw( img,  mouse.screen_x+xx, (hts-n)*img_h +mouse.screen_y)
-                
-            end
-            lg.draw( GAME.img.hud_arrow,  mouse.screen_x+32, (hts-arrow_y)*img_h + mouse.screen_y)
+        for i=0,belt_slots-1 do -------------------------------------------------------------------TODO: implement belt items selection
+            
+            lg.draw(GAME.img.slot, belt_pos_x+i*slot_size, belt_pos_y)
         end
+        -- lg.circle("fill", Screen.center.x, belt_pos_y, 5)
+        -- if mouse_select then
+        --     -- local n = 0
+        --     local hts = math.ceil((#self.usable)*0.5)
+        --     for n,k in ipairs(self.usable) do
+        --         -- n = n+1
+                
+        --         local img = self.itens[k.name].img
+        --         local w = img:getWidth()
+        --         -- local h = img_h
+                
+        --         local xx = arrow_y ==n and 46 or 54
+
+        --         lg.draw( img,  mouse.screen_x+xx, (hts-n)*img_h +mouse.screen_y)
+                
+        --     end
+        --     lg.draw( GAME.img.hud_arrow,  mouse.screen_x+32, (hts-arrow_y)*img_h + mouse.screen_y)
+        -- end
         item_label:draw(  self.x-32, self.y+8)
         lg.draw(GAME.img.backpack, self.x, self.y, 0,self.scale,self.scale,16,16)
     end
 }
+storage.resize_screen = function (w,h)
+    storage.x = w - 38
+    storage.y = h-38
+    belt_pos_x = Screen.center.x-slot_size*(belt_slots*0.5)
+    belt_pos_y = Screen.h-70
+end
+return storage

@@ -10,13 +10,19 @@
 -- ▐░▌       ▐░▌     ▐░█▄▄▄▄▄▄▄█░▌     ▐░█▄▄▄▄▄▄▄█░▌      ▄▄▄▄▄▄▄▄▄█░▌     ▐░█▄▄▄▄▄▄▄▄▄ 
 -- ▐░▌       ▐░▌     ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░░▌     ▐░░░░░░░░░░░▌
 --  ▀         ▀       ▀▀▀▀▀▀▀▀▀▀▀       ▀▀▀▀▀▀▀▀▀▀▀       ▀▀▀▀▀▀▀▀▀▀▀       ▀▀▀▀▀▀▀▀▀▀▀ 
+local lm = love.mouse
+local lk = love.keyboard
+local lg = love.graphics
+
+local min_scale = 0.25
+local max_scale = 6
 
 local TOOLS = {
     pickaxe = {
         id = 'pickaxe',
         name = 'iron pickaxe',
         speed = 5,
-        force = 0.2, -- smaller is stronger
+        force = 0.1, -- smaller is stronger
     },
     hand = {
         id = 'hand',
@@ -27,9 +33,7 @@ local TOOLS = {
         name = 'sword',
     }
 }
-local class = require "../library/classic"
-local v2 = require "../library/vector"
--- local map
+-- local Camera
 local set_cursor = love.mouse.setCursor
 local cursor = {
     scrolling = love.mouse.newCursor( GAME.img.cursor_sizeall, 15, 15 ),
@@ -40,190 +44,275 @@ local cursor = {
     hand = love.mouse.newCursor( GAME.img.cursor_hand, 15, 15 ),
     hand_grab = love.mouse.newCursor( GAME.img.cursor_hand_grab, 15, 15),
     cross = love.mouse.newCursor( GAME.img.cursor_cross, 15, 15 ),
+    null = love.mouse.newCursor( GAME.img.cursor_null, 15, 15 ),
+    zoom_in = love.mouse.newCursor( GAME.img.cursor_zoom_in, 15, 15 ),
+    zoom_out = love.mouse.newCursor( GAME.img.cursor_zoom_out, 15, 15 ),
+    eye1 = love.mouse.newCursor( GAME.img.cursor_eye1, 15, 15 ),
+    eye2 = love.mouse.newCursor( GAME.img.cursor_eye2, 15, 15 ),
+    eye3 = love.mouse.newCursor( GAME.img.cursor_eye3, 15, 15 ),
+    eye4 = love.mouse.newCursor( GAME.img.cursor_eye4, 15, 15 ),
+    eye5 = love.mouse.newCursor( GAME.img.cursor_eye5, 15, 15 ),
 }
 local state_by_type = {
     collectable = 'hand',
-    empty = 'cross',
+    empty = 'eye',
+    dark = 'null',
     enemy = 'sword',
     breakable = 'pickaxe'
 }
+
 local tile_hp = 0
 local old_tile_hp = 0
--- local counter = 0
-local old_gp = v2(1,1)
-local tool_index = 2
+local light_level = 0
+local old_gp = Lib.vec(1,1)
+-- local tool_index = 2
 local og_screen_x = 0
 local og_screen_y = 0
--- local screen_x = 0
--- local screen_y = 0
-local og_camera_x = 0
-local og_camera_y = 0
+local target_scale = 1
+local start_pan = Lib.vec()
+local offset = Lib.vec()
+local cam_v = Lib.vec()
+local cam_p = Lib.vec()
 local img_scale = 1.1
-local img_counter = 0
-local suffix = ''
 local cursor_actual = ''
 local cursor_old = ''
+local last_cam_focus = 'mouse'
 local tile_size
 local tile_size_half
 local hover_item_name = lg.newText( GAME.font,'')
 local show_item_name = false
+local CAM_MOVE_SPEED = 150
+local CAM_STOP_SPEED = 5
 
-local Mouse = class:extend()
-function Mouse:new( map)
-    self.id = 'mouse'
-    self.tile = "air"
-    self.tile_name = "air"
+local Mouse = {}
+function Mouse.init( mw, mh, ts)
+    Mouse.id = 'mouse'
+    Mouse.tile = "air"
+    Mouse.tile_id = "air"
 
-    self.camera_x = GAME.map.w/2
-    self.camera_y = 0 
+    Mouse.camera_x = GAME.map.w/2
+    Mouse.camera_y = 100 
     -- old_gp = v2(1,1)
-    self.grid_position = v2(1,1)
-
-    self.wheel = 1
+    Mouse.grid_position = Lib.vec(1,1)
+    Mouse.scale = 1
+    Mouse.wheel = 1
     -- tool_index = 1
-    self.wheel_sensibility = 1
+    Mouse.wheel_sensibility = 1
 
-    self.grab = false
-    self.drag = false
-    self.state = 'pickaxe'
-    self.tools = {TOOLS.hand, TOOLS.pickaxe, TOOLS.sword}
-    self.items = {torch = 1}
-    self.item_selected = 'torch'
+    Mouse.grab = false
+    Mouse.drag = false
+    Mouse.state = 'pickaxe'
 
-    tile_size = GAME.map.tile_size
-    tile_size_half = GAME.map.tile_size_half
+    Mouse.visual_grid = {}
+    -- Mouse.visual_grid_alive = {}
+    -- for x=1,mw do
+    --     for y=1,mh do
+    --         local tx,ty = (x-1)*ts, (y-1)*ts
+    --         Mouse.visual_grid[x..':'..y] = {l=0,x=tx,y=ty,c={1,1,1}}
+    --     end
+    -- end
 
-    print( self.grid_position)
+    tile_size = ts
+    tile_size_half = ts*0.5
 end
 Mouse._pressed = {
-    pickaxe = function(self, x, y, b)
+    pickaxe = function( x, y, b)
         if b==1 then
             tile_hp = old_tile_hp -0.9
         end
-        -- local gx,gy = self.grid_position:unpack()
+        -- local gx,gy = Mouse.grid_position:unpack()
         -- if not GAME.map:is_lighted( gx,gy) then return end
     end,
-    sword = function(self, x, y, b)
-        -- local gx,gy = self.grid_position:unpack()
-        -- self:uptade_tile()
-    end,
-    hand = function(self, x, y, b)
-        local it = GAME.get_item( self.x, self.y)
+    -- sword = function( x, y, b)
+        -- local gx,gy = Mouse.grid_position:unpack()
+        -- Mouse:uptade_tile()
+    -- end,
+    hand = function( x, y, b)
+        -- local it = GAME.get_item( Mouse.x, Mouse.y)
         if b==1 then
-            -- local it = GAME.get_item( self.x, self.y)
-            -- it:grab( self.x, self.y)
+            local it = GAME.get_item( Mouse.x, Mouse.y)
+            -- it:grab( Mouse.x, Mouse.y)
             cursor_actual = 'hand_grab'
-            Timer.after(0.1, function() cursor_actual = self.state end)
+            Lib.timer.after(0.1, function() cursor_actual = Mouse.state end)
         end
     end,
-    scrolling = function(self, x, y, b)
-    end,
-    cross = function(self, x, y, b)
-    end,
+    -- scrolling = function( x, y, b)
+    -- end,
+    -- zooming = function( x, y, b)
+        
+        -- cam_v.x, cam_v.y = 0,0
+        -- cam_p = Lib.vec(Camera.x, Camera.y)
+    -- end,
+    -- cross = function( x, y, b)
+    -- end,
 }
 Mouse._released = {
-    pickaxe = function(self, x, y, b)
-        -- local gx,gy = self.grid_position:unpack()
-        -- if not GAME.map:is_lighted( gx,gy) then return end
-        -- self:uptade_tile()
-    end,
-    sword = function(self, x, y, b)
-        -- local gx,gy = self.grid_position:unpack()
-        -- self:uptade_tile()
-    end,
-    hand = function(self, x, y, b)
+    -- pickaxe = function( x, y, b)
+    --     -- local gx,gy = Mouse.grid_position:unpack()
+    --     -- if not GAME.map:is_lighted( gx,gy) then return end
+    --     -- Mouse:uptade_tile()
+    -- end,
+    -- sword = function( x, y, b)
+    --     -- local gx,gy = Mouse.grid_position:unpack()
+    --     -- Mouse:uptade_tile()
+    -- end,
+    hand = function( x, y, b)
         -- if b==1 then
-            -- Timer.after(0.1, function() self:uptade_tile() end)
+            -- Lib.timer.after(0.1, function() Mouse:uptade_tile() end)
             
         -- end
-        if not GAME.has_item( self.x, self.y) then
-            self:set_state( 'cross')
-            self:uptade_tile()
+        if not GAME.has_item( Mouse.x, Mouse.y) then
+            Mouse.set_state( 'eye')
+            Mouse.uptade_tile()
         end
     end,
-    scrolling = function(self, x, y, b)
+    scrolling = function( x, y, b)
         if b == 3 then
-            self.drag = false
-            -- counter = 0
-            self:set_state( 'cross')
-            self:uptade_tile()
+            Mouse.drag = false
+            cam_v = Lib.vec()
+            Camera.focus = last_cam_focus
+            Mouse.set_state( 'eye')
+            Mouse.uptade_tile()
         end
     end,
-    cross = function(self, x, y, b)
+    -- zooming = function( x, y, b)
+    -- end,
+    eye = function( x, y, b)
         if b==2 then
 
-            -- self:uptade_tile()
-            GAME.use_item( self.x, self.y)
-            self:uptade_tile()
+            -- Mouse:uptade_tile()
+            GAME.use_item( Mouse.grid_position.x, Mouse.grid_position.y)
+            Mouse.uptade_tile()
         end
     end,
 }
 -- Mouse._down = {
-Mouse.pickaxe = function(self, dt)
+Mouse.pickaxe = function( dt)
 
-    if love.mouse.isDown( 1) and not self.drag then
-        if not self.tile_light then return end
-        -- if not GAME.map:is_lighted( self:get_grid_position()) then return end
+    if lm.isDown( 1) and not Mouse.drag then
+        -- if not Mouse.tile_light then return end
+        -- local tile = GAME.map:get_tile(Mouse.grid_position.x, Mouse.grid_position.y)
+        if not GAME.world:hasItem(Mouse.tile) then
+            return
+        end
 
-        if GAME.map.is_breakable( self.tile) and tile_hp>0 then
+        if GAME.map.is_breakable( Mouse.tile_id) and tile_hp>0 then
             tile_hp = tile_hp - TOOLS['pickaxe'].speed*dt
             
             if math.ceil(tile_hp)~=old_tile_hp then
                 cursor_actual = 'pickaxe_hit'
-                Timer.after(0.1, function() cursor_actual = 'pickaxe' end) --set_cursor(cursor.pickaxe)
+                Lib.timer.after(0.1, function() cursor_actual = 'pickaxe' end) --set_cursor(cursor.pickaxe)
 
                 GAME.sfx.hit_block:play()
                 img_scale = 1.1
                 old_tile_hp = math.ceil(tile_hp)
             end
             if tile_hp<=0 then
-                GAME.map:break_tile( self.grid_position:unpack())
-                local gp = self.grid_position:clone()
-                Timer.after(0.5,function()
-                    if gp==self.grid_position then
-                         self:uptade_tile()
-                    end    
+                GAME.break_tile( Mouse.grid_position:unpack())
+                local gp = Mouse.grid_position:clone()
+                Lib.timer.after(0.5,function()
+                    if gp==Mouse.grid_position then
+                         Mouse:uptade_tile()
+                    end
                 end)
                 
             end
         end
     end
-end
-Mouse.sword = function(self, dt) end
-Mouse.hand = function(self, dt) end
-Mouse.scrolling = function(self, dt)
-    if (love.keyboard.isDown('lctrl') or love.mouse.isDown( 3)) and not self.drag then
-        local cx = math.abs( self.screen_x-og_screen_x)--/GAME.camera.scale
-        local cy = math.abs( self.screen_y-og_screen_y)--/GAME.camera.scale
-        local moved = cx>1 or cy>1
-        if moved then
-            self.drag = true
-            GAME.camera.focus = self.id
-            og_camera_x = GAME.camera.x
-            og_camera_y = GAME.camera.y
-
-            og_screen_x = self.screen_x
-            og_screen_y = self.screen_y
-        end
-    end
-
-    if self.drag then
-        local dx = (self.screen_x - og_screen_x)/GAME.camera.scale
-        local dy = (self.screen_y - og_screen_y)/GAME.camera.scale
-
-       self.camera_x = og_camera_x - dx
-       self.camera_y = og_camera_y - dy
-    end
-end
-Mouse.cross = function(self, dt)
-    -- local gx,gy = self.grid_position:unpack()
-    -- if not GAME.map:is_lighted( gx,gy) then return end
-    -- if GAME.check_item( self.x, self.y) then
-    --     self:set_state( 'hand')
+    -- if not(old_gp==Mouse.grid_position) or Mouse.tile=='air' then
+    --     old_gp = Mouse.grid_position
+    --     Mouse.uptade_tile()
     -- end
 end
--- }
-function Mouse:update( dt)
+Mouse.sword = function( dt)
+    -- if not(old_gp==Mouse.grid_position) or Mouse.tile=='air' then
+    --     old_gp = Mouse.grid_position
+    --     Mouse.uptade_tile()
+    -- end
+end
+Mouse.hand = function( dt)
+    -- if not(old_gp==Mouse.grid_position) or Mouse.tile=='air' then
+    --     old_gp = Mouse.grid_position
+    --     Mouse.uptade_tile()
+    -- end
+end
+Mouse.zooming = function( dt)
+    if Mouse.scale~=target_scale then
+        local dif = target_scale - Mouse.scale
+        if (math.abs(dif)<0.01) then
+            Mouse.scale = target_scale
+        else
+            Mouse.scale = Mouse.scale + dif*10*dt
+        end
+            local b4_zoom_x, b4_zoom_y = Mouse.x, Mouse.y
+
+            Camera:zoomTo( Mouse.scale)
+
+            local after_zoom_x, after_zoom_y = Camera:mousePosition()
+            
+            local dx = b4_zoom_x -after_zoom_x
+            local dy = b4_zoom_y -after_zoom_y
+            
+            Camera:move( dx, dy)
+            
+            cam_v.x, cam_v.y = 0,0
+            cam_p.x, cam_p.y = Camera.x, Camera.y
+    else
+        Mouse.uptade_tile()
+    end
+end
+Mouse.scrolling = function( dt)
+
+    if Mouse.drag then
+        -- local dx = (Mouse.screen_x - og_screen_x)/Camera.scale
+        -- local dy = (Mouse.screen_y - og_screen_y)/Camera.scale
+        local dx = (Mouse.screen_x - start_pan.x)
+        local dy = (Mouse.screen_y - start_pan.y)
+        Mouse.camera_x = offset.x - dx/Mouse.scale
+        Mouse.camera_y = offset.y - dy/Mouse.scale
+        Camera:lookAt( offset.x - dx/Mouse.scale, offset.y - dy/Mouse.scale)
+        cam_v.x, cam_v.y = 0,0
+        cam_p = Lib.vec(Camera.x, Camera.y)
+    else
+        if lm.isDown( 3) or lk.isDown('lctrl') then
+            local cx = math.abs( Mouse.screen_x-og_screen_x)--/Camera.scale
+            local cy = math.abs( Mouse.screen_y-og_screen_y)--/Camera.scale
+            local moved = cx>1 or cy>1
+            if moved then
+                last_cam_focus = Camera.focus
+                Mouse.scale = target_scale
+                Mouse.drag = true
+                Camera.focus = Mouse.id
+                offset.x = Camera.x
+                offset.y = Camera.y
+
+                -- print(last_cam_focus, Camera.focus)
+                -- og_screen_x = Mouse.screen_x
+                -- og_screen_y = Mouse.screen_y
+            end
+        end
+    end
+end
+Mouse.eye = function( dt)
+    -- local gx,gy = Mouse.grid_position:unpack()
+    -- if not GAME.map:is_lighted( gx,gy) then return end
+    -- if GAME.check_item( Mouse.x, Mouse.y) then
+    --     Mouse:set_state( 'hand')
+    -- end
+    -- if not(old_gp==Mouse.grid_position) then
+        -- GAME.map:remove_light(old_gp.x, old_gp.y)
+        -- old_gp = Mouse.grid_position
+        -- Mouse.uptade_tile()
+        -- GAME.map:add_light(old_gp.x, old_gp.y,0.5,{1,1,5})
+        -- GAME.map:update_lights()
+    -- end
+
+end
+Mouse.null = function( dt)
+    --does nothing
+end
+
+function Mouse.update( dt)
     if cursor_actual ~= cursor_old then
         set_cursor( cursor[cursor_actual])
         cursor_old = cursor_actual
@@ -232,153 +321,204 @@ function Mouse:update( dt)
         img_scale = img_scale - dt
     end
 
-    self.x, self.y = GAME.camera:mousePosition()
-    self.screen_x, self.screen_y = love.mouse.getPosition()
-    local gx, gy = math.ceil(self.x/32), math.ceil(self.y/32)
-    self.grid_position = v2(gx, gy)
-    if self:get_state( ) ~= 'scrolling' and (not (old_gp==self.grid_position) or self.tile=='air') then
-
-        old_gp:replace(self.grid_position)
-        self:uptade_tile()
-    end
-
-    self[ self.state](self,dt) -- update current state
+    Mouse.x, Mouse.y = Camera:mousePosition()
+    Mouse.screen_x, Mouse.screen_y = lm.getPosition()
+    local gx, gy = math.ceil(Mouse.x/tile_size), math.ceil(Mouse.y/tile_size)
+    Mouse.grid_position = Lib.vec(gx, gy)
     
-end
-function Mouse:get_grid_position()
-    print( self.grid_position)
-    return self.grid_position:unpack()
-end
-function Mouse:pickaxe_release()
 
+    --WASD movement
+    if Mouse.state~="scrolling" or Mouse.state~="zooming" then
+        if love.keyboard.isDown('lshift') then CAM_MOVE_SPEED = 500 end
+        if love.keyboard.isDown('w') then
+            cam_v.y = math.max(cam_v.y - CAM_MOVE_SPEED*dt, -CAM_MOVE_SPEED)
+        elseif love.keyboard.isDown('s') then
+            cam_v.y = math.min(cam_v.y + CAM_MOVE_SPEED*dt, CAM_MOVE_SPEED)
+        elseif cam_v.y~=0 then
+            cam_v.y = cam_v.y -cam_v.y*CAM_STOP_SPEED*dt
+        end
+        if love.keyboard.isDown('a') then
+            cam_v.x = math.max(cam_v.x - CAM_MOVE_SPEED*dt, -CAM_MOVE_SPEED)
+        elseif love.keyboard.isDown('d') then
+            cam_v.x = math.min(cam_v.x + CAM_MOVE_SPEED*dt, CAM_MOVE_SPEED)
+        elseif cam_v.x~=0 then
+            cam_v.x = cam_v.x -cam_v.x*CAM_STOP_SPEED*dt
+        end
+        if cam_v.y~=0 or cam_v.x~=0 then
+            cam_p = cam_p + cam_v*dt
+            if math.abs(cam_v.x)<0.05 then
+                cam_v.x = 0
+                cam_p.x = math.floor(cam_p.x)
+            end
+            if math.abs(cam_v.y)<0.05 then
+                cam_v.y = 0
+                cam_p.y = math.floor(cam_p.y)
+            end
+            Camera:lookAt( cam_p.x, cam_p.y)
+        end
+    -- else
+        if not(old_gp==Mouse.grid_position) then
+            old_gp = Mouse.grid_position:clone()
+            Mouse.uptade_tile()
+        end
+    end
+    Mouse[ Mouse.state](dt) -- update current state
+    
+    local trash = {}
+    for key,gt in pairs(Mouse.visual_grid) do
+        if key~=(old_gp.x..':'..old_gp.y) then
+            gt.l = gt.l-2*dt
+            if gt.l<=0 then
+                table.insert(trash, key)
+            end
+        end
+    end
+    
+    for x=1,#trash do
+        Mouse.visual_grid[trash[x]] = nil
+    end
+    -- for x=1,#Mouse.visual_grid do
+    --     for y=1,#Mouse.visual_grid[x] do
+    --         Mouse.visual_grid[x][y] = 0
+    --     end
+    -- end
 end
-function Mouse:draw_hud()
-    if show_item_name and self.state=='hand' then
+function Mouse.get_grid_position()
+    print( Mouse.grid_position)
+    return Mouse.grid_position:unpack()
+end
+-- function Mouse.pickaxe_release()
+
+-- end
+function Mouse.draw_hud()
+    if show_item_name and Mouse.state=='hand' then
         local w = hover_item_name:getWidth()*0.5
         lg.setColor(1,1,1,1)
         
-        lg.draw( hover_item_name, self.screen_x - w , self.screen_y + 20)
+        lg.draw( hover_item_name, Mouse.screen_x - w , Mouse.screen_y + 20)
     end
 end
-function Mouse:draw()
-    -- local x,y = self.x, self.y
-    -- local x,y = self.grid_position:unpack()
-    -- lg.setColor(1,1,1)
-    -- lg.print( string.format(">%0d, %0d", self.x, self.y), self.x, self.y - 20)
-    -- lg.print( self.state,self.screen_x,self.screen_y + 20)
-    -- lg.print( math.floor(self.wheel)+1,self.screen_x,self.screen_y + 20)
+function Mouse.draw()
     
-    -- lg.circle('line',240+camera_x, 426+camera_y,6,8)
-
-    local t = GAME.map:get_tile( self.grid_position:unpack())
-    if t and GAME.map.is_solid( t:get_id()) then
+    
+    local t = GAME.map:get_tile( Mouse.grid_position:unpack())
+    if t and GAME.map.is_solid( t.id) then
         local tx,ty = (t.x-1)*tile_size, (t.y-1)*tile_size
         lg.setColor(1,1,1)
         lg.draw( GAME.img.tileset, GAME.quads[t:get_id()], tile_size_half+tx, tile_size_half+ty, 0, img_scale, img_scale,tile_size_half,tile_size_half)
-        lg.setColor(0,0,0,0.5)
-        lg.rectangle('line', tx, ty, tile_size, tile_size)
+        -- lg.setColor(1,1,1,0.5)
+        -- lg.rectangle('line', tx, ty, tile_size, tile_size)
+    end
+
+    for _,gt in pairs(Mouse.visual_grid) do
+        if gt.l>0 then
+            lg.setColor(gt.c[1],gt.c[2],gt.c[3],gt.l)
+            lg.draw( GAME.img.tileset, GAME.quads["frame"], tile_size_half+gt.x, tile_size_half+gt.y, 0, img_scale, img_scale,tile_size_half,tile_size_half)
+        end
     end
 end
-function Mouse:wheelmoved(x, y)
+function Mouse.wheelmoved(_, dy)
 
     
-    if y > 0 then
-        self.wheel = self.wheel +1
-    elseif y < 0 then
-        self.wheel = self.wheel -1
+    local df = target_scale*0.1
+    local prezoom = target_scale
+    target_scale = math.clamp(target_scale + dy *df,min_scale,max_scale)
+    if math.abs(target_scale - math.round(target_scale))<(df*0.9) then
+        target_scale = math.round(target_scale)
     end
-
-    -- self.wheel = (self.wheel + y*self.wheel_sensibility)%(#self.tools)
-    -- tool_index = math.floor(self.wheel)+1
-    -- self.state = self.tools[ tool_index].id
-    -- print(self.state)
+    if prezoom ~= target_scale then
+        cursor_actual = dy<0 and "zoom_out" or "zoom_in"
+    end
+    if Mouse.scale ~= target_scale and Mouse.get_state( ) ~= 'zooming' then
+        if Mouse.drag then --disable drag if scrolling's state is active to avoid no cursor bug
+            Mouse.drag = false
+            cam_v = Lib.vec()
+            Camera.focus = last_cam_focus
+        end
+        Mouse.set_state( 'zooming')
+    end
 end
-function Mouse:key_pressed( k )
-    if k == 'lctrl' then
-        og_screen_x = self.x
-        og_screen_y = self.y
-        
-        self:set_state( 'scrolling')
+function Mouse.key_pressed( k )
+    if k == 'lctrl' and not Mouse.drag then
+        start_pan = Lib.vec(Mouse.screen_x, Mouse.screen_y)
+        Mouse.set_state( 'scrolling')
     end
-    -- self:uptade_tile()
 end 
-function Mouse:key_released( k )
-    if k == 'lctrl' then
-        self.drag = false
-        self:set_state( 'cross')
+function Mouse.key_released( k )
+    if k == 'lctrl' and Mouse.drag then
+        Mouse.drag = false
+        Mouse.set_state( 'eye')
     end
-    -- self:uptade_tile()
+    -- if k == 
 end 
 
-function Mouse:pressed( x, y, button )
+function Mouse.pressed( x, y, button )
     if button == 3 then
-        og_screen_x = x
-        og_screen_y = y
-        self:set_state( 'scrolling')
+        start_pan = Lib.vec(Mouse.screen_x, Mouse.screen_y)
+        Mouse.set_state( 'scrolling')
     end
-    self._pressed[ self.state](self, x,y,button)
-    
-    -- if button == 2 then
-    --     -- use currently selected item
-    --     local used = GAME:use_item( self.item_selected, self:get_grid_position())
-    --     if used then
-    --         self.items[ self.item_selected] = self.items[ self.item_selected] - 1
-    --     end
-    -- end
-
-    
+    if Mouse._pressed[ Mouse.state] then Mouse._pressed[ Mouse.state]( x,y,button) end
 end
-function Mouse:released( x, y, button)
-    self._released[ self.state](self,x,y,button)
-    
+function Mouse.released( x, y, button)
+    if Mouse._released[ Mouse.state] then Mouse._released[ Mouse.state]( x,y,button) end
 end
-function Mouse:set_state( state)
-    self.state = state
-    cursor_actual = state
+function Mouse.set_state( state)
+    Mouse.state = state
+    if state == "eye" then
+        local n = ''
+        if light_level<0.1 then n = '5'
+        elseif light_level<=0.3 then n = '4'
+        elseif light_level<0.6 then n = '3'
+        elseif light_level<0.8 then n = '2'
+        else n = '1' end
+        cursor_actual = state..n
+    else
+        cursor_actual = state
+    end
 end
-function Mouse:get_state()
-    return self.state
+function Mouse.get_state()
+    return Mouse.state
 end
-function Mouse:uptade_tile()
-    local gx,gy = self.grid_position:unpack()
-    local state = self.state
-    if not self.drag then
-        
-        if GAME.map:is_lighted( gx,gy) then
-
-            -- 
+function Mouse.uptade_tile()
+    local gx,gy = Mouse.grid_position:unpack()
+    local state = Mouse.state
+    if not Mouse.drag then
+        local tile=GAME.map:get_tile( gx,gy)
+        if tile then
+            -- Light.set(Mouse.id,{x=Mouse.grid_position.x, y=Mouse.grid_position.y})
             show_item_name = false
-            local obj, type = GAME.whats_here( self.x, self.y, gx, gy)
-
-            if type == 'item' then
+            local obj, tipo = GAME.whats_here( Mouse.x, Mouse.y, gx, gy)
+            -- print(tipo, gx,gy)
+            if tipo == 'item' then
                 show_item_name = true
-
                 hover_item_name:set( obj.name)
-            -- elseif type = 'air' then
-            -- elseif type = 'enemy' then
-            else -- if it is a block
-                self.tile = obj.id
-                self.tile_light = true
-                self.tile_name = GAME.map.get_name( self.tile)
-                tile_hp = GAME.map.get_info( self.tile, 'durability')*TOOLS['pickaxe'].force
+            elseif tipo == 'block' then
+                Mouse.tile = tile
+                Mouse.tile_id = tile.id
+                tile_hp = GAME.map.get_info( Mouse.tile_id, 'durability')*TOOLS['pickaxe'].force
                 old_tile_hp = math.ceil(tile_hp)
+            -- elseif tipo=='air' then
             end
 
+            light_level = Light.get_light_level(gx,gy)
+            local tx,ty = (gx-1)*tile_size, (gy-1)*tile_size
+            if not Mouse.visual_grid[gx..':'..gy] then
+                Mouse.visual_grid[gx..':'..gy] = {c=GAME.map.get_color(tile.id),l=1,x=tx,y=ty}
+            else
+                Mouse.visual_grid[gx..':'..gy].l = 1
+                Mouse.visual_grid[gx..':'..gy].c = GAME.map.get_color(tile.id)
+            end
+            
             state = state_by_type[ obj.type]
         else
-            state = 'cross'
-            self.tile_name = 'pitch-dark'
-            self.tile = 'dark'
+            state = 'eye'
+            light_level = 1
+            Mouse.tile_id = 'air'
+            Mouse.tile = {}
         end
         --if enemy then set state to sword end
     end
-    -- print(hover_item_name)
-    -- if state~=self.state then
-    self:set_state( state)
-    -- self.state = state
-    -- cursor_actual = state
-        -- Timer.after(0.15, function() self:set_state( state) end)
-    -- end
+    Mouse.set_state( state)
     
 end
 
