@@ -44,7 +44,7 @@ local DROPS = {
     rock = { 'coal', 'coal', 'iron', 'stone', 'iron', 'gold'},
 }
 
-local cell = Lib.class:extend()
+local cell = class:extend()
 function cell:new( x, y, w, h, id)
     self.id = id or 'air'
     self.x = x or 0
@@ -79,7 +79,7 @@ Map.new = function( self, w, h)
     self.ht = h
     self.w = w * tile_size
     self.h = h * tile_size
-    self.center = Lib.vec( self.w, self.h)*0.5
+    self.center = vec( self.w, self.h)*0.5
 
     -- local sh = self.h-tile_size
 
@@ -383,7 +383,7 @@ Map.break_tile = function( self, x,y)
         --     -- if rn>0.1 and drops[rn] then
         --     if drops[rn] then
         --         local nx, ny = self:grid_to_world( t.x, t.y)
-        --         Lib.timer.after(0.1, function() GAME.drop_item(drops[rn], nx, ny) end)
+        --         timer.after(0.1, function() GAME.drop_item(drops[rn], nx, ny) end)
         --     end
         -- end
     end

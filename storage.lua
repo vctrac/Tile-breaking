@@ -111,7 +111,7 @@ local storage = {
         item_label:set( item)
         
         self.scale = 2.5
-        Lib.timer.tween(1, self, {scale = 2}, 'out-elastic')
+        timer.tween(1, self, {scale = 2}, 'out-elastic')
         GAME.sfx.pickup:play()
 
     end,

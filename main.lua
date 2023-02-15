@@ -7,30 +7,27 @@ math.random()
 math.random()
 math.random()
 
-require("../LIBRARY/Math")
 require("util")
-Lib = {
-    timer = require "../LIBRARY/HUMP.timer",
-    camera = require "../LIBRARY/HUMP.camera",
-    class = require "../LIBRARY/classic",
-    vec = require "../LIBRARY/HUMP/vector",
-    bump = require "../LIBRARY/bump",
-}
 
--- local Shadows = require("shadows")
--- local LightWorld = require("shadows.LightWorld")
+lume = require "../LIBRARY/lume"
+sfxr = require "../LIBRARY/sfxr"
+timer = require "../LIBRARY/HUMP.timer"
+camera = require "../LIBRARY/HUMP.camera"
+class = require "../LIBRARY/classic"
+vec = require "../LIBRARY/HUMP/vector"
+bump = require "../LIBRARY/bump"
 
-Camera = Lib.camera(0,0, 1)
+Camera = camera(0,0, 1)
 Screen = {
     w = lg.getWidth(),
     h = lg.getHeight(),
-    center = Lib.vec(lg.getWidth(), lg.getHeight())*0.5,
-    center2world = Lib.vec(lg.getWidth(), lg.getHeight())*0.5,
+    center = vec(lg.getWidth(), lg.getHeight())*0.5,
+    center2world = vec(lg.getWidth(), lg.getHeight())*0.5,
     set = function( w, h)
         Screen.w = w
         Screen.h = h
-        Screen.center = Lib.vec(w,h)*0.5
-        Screen.center2world = Lib.vec(Camera:worldCoords(Screen.center:unpack()))
+        Screen.center = vec(w,h)*0.5
+        Screen.center2world = vec(Camera:worldCoords(Screen.center:unpack()))
     end,
     PointInside = function(px,py)
         return PointInside( px,py, 0, 0, Screen.w, Screen.h)
@@ -49,7 +46,7 @@ GAME.img = RES.img
 GAME.quads = RES.quads
 GAME.sfx = RES.sfx
 GAME.font = RES.font
-GAME.world = Lib.bump.newWorld(64)
+GAME.world = bump.newWorld(64)
 GAME.canvas = lg.newCanvas(GAME.map_w*GAME.tile_size,GAME.map_h*GAME.tile_size)
 -- GAME.LightWorld = LightWorld:new()
 local drops = require 'item_drops'
@@ -66,7 +63,7 @@ local Entities = {}
 
 function GAME.drop_item( item, x, y)
     print( item ..' was dropped at '..x..', '..y)
-    drops:add( item, x, y)
+    -- drops:add( item, x, y)
 end
 function GAME.use_item( gx, gy)
     local item = Storage:get_item()
@@ -218,6 +215,7 @@ function love.load()
     }
     -- Camera.focus = "mouse"
     Camera.focus = "mouse"
+    Camera:lookAt(Screen.w*0.5,0)
     -- Camera:set_boundaries( 0, GAME.map.w, 0,GAME.map.h)
     
     -- lg.setBackgroundColor(0.1,0.25,0.6)
@@ -262,7 +260,7 @@ function love.update( dt)
     drops:update( dt)
     Storage:update( dt)
     -- Player.update(dt)
-    Lib.timer.update( dt)
+    timer.update( dt)
 end
 function love.draw()
     lg.setColor(1,1,1)
@@ -325,12 +323,7 @@ function love.draw()
         Light.draw()
         lg.setShader()
     end
-    -- lg.setShader(myShader)
-    -- GAME.map:draw_light()
-    -- lg.setShader()
-    -- Light:draw()
-    -- lg.setColor(0,0.5,1)
-    -- lg.rectangle("fill", player.x, player.y, player.w, player.h)
+
 
     Camera:detach()
 

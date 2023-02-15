@@ -91,7 +91,7 @@ local function item_draw( item)
     -- lg.print( item.name, item.x, item.y)
 end
 
-local fixed_items = Lib.class:extend()
+local fixed_items = class:extend()
 function fixed_items:new(name,x,y)
     self.x, self.y = x,y
     self.w, self.h = GAME.tile_size,GAME.tile_size
@@ -160,8 +160,8 @@ function bomb:destroy()
     -- self:action(0)
 end
 function bomb:action( time)
-    Lib.timer.after((time or 2.8),function() GAME.map:add_light( self.gx, self.gy, 1, {1,1,0.8}) end)
-    Lib.timer.after(3,function()
+    timer.after((time or 2.8),function() GAME.map:add_light( self.gx, self.gy, 1, {1,1,0.8}) end)
+    timer.after(3,function()
         self:explode()
         -- GAME.map:remove_light( self.gx,self.gy)
         GAME.sfx.explosion:play()

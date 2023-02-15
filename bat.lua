@@ -7,7 +7,7 @@ local min_distance, max_distance = 3,9
 local directions = {{0,-1},{0,1},{-1,0},{1,0}}
 local directions_lit = {'u','d','l','r'}
 
-local bat = Lib.class:extend()
+local bat = class:extend()
 function bat:new(x,y)
     self.x = x or 0
     self.y = y or 0

@@ -10,7 +10,7 @@ local Weight = {
 local water_spread = 150
 local div = 8 --int, min(1), max(tile_size) | decrease 'div' to increase performance
 local tile_size = 32/div
-local unit = Lib.class:extend()
+local unit = class:extend()
 
 
 local SandBox = {

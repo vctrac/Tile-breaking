@@ -64,15 +64,15 @@ local state_by_type = {
 local tile_hp = 0
 local old_tile_hp = 0
 local light_level = 0
-local old_gp = Lib.vec(1,1)
+local old_gp = vec(1,1)
 -- local tool_index = 2
 local og_screen_x = 0
 local og_screen_y = 0
 local target_scale = 1
-local start_pan = Lib.vec()
-local offset = Lib.vec()
-local cam_v = Lib.vec()
-local cam_p = Lib.vec()
+local start_pan = vec()
+local offset = vec()
+local cam_v = vec()
+local cam_p = vec()
 local img_scale = 1.1
 local cursor_actual = ''
 local cursor_old = ''
@@ -93,7 +93,7 @@ function Mouse.init( mw, mh, ts)
     Mouse.camera_x = GAME.map.w/2
     Mouse.camera_y = 100 
     -- old_gp = v2(1,1)
-    Mouse.grid_position = Lib.vec(1,1)
+    Mouse.grid_position = vec(1,1)
     Mouse.scale = 1
     Mouse.wheel = 1
     -- tool_index = 1
@@ -133,7 +133,7 @@ Mouse._pressed = {
             local it = GAME.get_item( Mouse.x, Mouse.y)
             -- it:grab( Mouse.x, Mouse.y)
             cursor_actual = 'hand_grab'
-            Lib.timer.after(0.1, function() cursor_actual = Mouse.state end)
+            timer.after(0.1, function() cursor_actual = Mouse.state end)
         end
     end,
     -- scrolling = function( x, y, b)
@@ -141,7 +141,7 @@ Mouse._pressed = {
     -- zooming = function( x, y, b)
         
         -- cam_v.x, cam_v.y = 0,0
-        -- cam_p = Lib.vec(Camera.x, Camera.y)
+        -- cam_p = vec(Camera.x, Camera.y)
     -- end,
     -- cross = function( x, y, b)
     -- end,
@@ -158,7 +158,7 @@ Mouse._released = {
     -- end,
     hand = function( x, y, b)
         -- if b==1 then
-            -- Lib.timer.after(0.1, function() Mouse:uptade_tile() end)
+            -- timer.after(0.1, function() Mouse:uptade_tile() end)
             
         -- end
         if not GAME.has_item( Mouse.x, Mouse.y) then
@@ -169,7 +169,7 @@ Mouse._released = {
     scrolling = function( x, y, b)
         if b == 3 then
             Mouse.drag = false
-            cam_v = Lib.vec()
+            cam_v = vec()
             Camera.focus = last_cam_focus
             Mouse.set_state( 'eye')
             Mouse.uptade_tile()
@@ -201,7 +201,7 @@ Mouse.pickaxe = function( dt)
             
             if math.ceil(tile_hp)~=old_tile_hp then
                 cursor_actual = 'pickaxe_hit'
-                Lib.timer.after(0.1, function() cursor_actual = 'pickaxe' end) --set_cursor(cursor.pickaxe)
+                timer.after(0.1, function() cursor_actual = 'pickaxe' end) --set_cursor(cursor.pickaxe)
 
                 GAME.sfx.hit_block:play()
                 img_scale = 1.1
@@ -210,7 +210,7 @@ Mouse.pickaxe = function( dt)
             if tile_hp<=0 then
                 GAME.break_tile( Mouse.grid_position:unpack())
                 local gp = Mouse.grid_position:clone()
-                Lib.timer.after(0.5,function()
+                timer.after(0.5,function()
                     if gp==Mouse.grid_position then
                          Mouse:uptade_tile()
                     end
@@ -272,7 +272,7 @@ Mouse.scrolling = function( dt)
         Mouse.camera_y = offset.y - dy/Mouse.scale
         Camera:lookAt( offset.x - dx/Mouse.scale, offset.y - dy/Mouse.scale)
         cam_v.x, cam_v.y = 0,0
-        cam_p = Lib.vec(Camera.x, Camera.y)
+        cam_p = vec(Camera.x, Camera.y)
     else
         if lm.isDown( 3) or lk.isDown('lctrl') then
             local cx = math.abs( Mouse.screen_x-og_screen_x)--/Camera.scale
@@ -324,7 +324,7 @@ function Mouse.update( dt)
     Mouse.x, Mouse.y = Camera:mousePosition()
     Mouse.screen_x, Mouse.screen_y = lm.getPosition()
     local gx, gy = math.ceil(Mouse.x/tile_size), math.ceil(Mouse.y/tile_size)
-    Mouse.grid_position = Lib.vec(gx, gy)
+    Mouse.grid_position = vec(gx, gy)
     
 
     --WASD movement
@@ -422,9 +422,9 @@ function Mouse.wheelmoved(_, dy)
     
     local df = target_scale*0.1
     local prezoom = target_scale
-    target_scale = math.clamp(target_scale + dy *df,min_scale,max_scale)
-    if math.abs(target_scale - math.round(target_scale))<(df*0.9) then
-        target_scale = math.round(target_scale)
+    target_scale = lume.clamp(target_scale + dy *df,min_scale,max_scale)
+    if math.abs(target_scale - lume.round(target_scale))<(df*0.9) then
+        target_scale = lume.round(target_scale)
     end
     if prezoom ~= target_scale then
         cursor_actual = dy<0 and "zoom_out" or "zoom_in"
@@ -432,7 +432,7 @@ function Mouse.wheelmoved(_, dy)
     if Mouse.scale ~= target_scale and Mouse.get_state( ) ~= 'zooming' then
         if Mouse.drag then --disable drag if scrolling's state is active to avoid no cursor bug
             Mouse.drag = false
-            cam_v = Lib.vec()
+            cam_v = vec()
             Camera.focus = last_cam_focus
         end
         Mouse.set_state( 'zooming')
@@ -440,7 +440,7 @@ function Mouse.wheelmoved(_, dy)
 end
 function Mouse.key_pressed( k )
     if k == 'lctrl' and not Mouse.drag then
-        start_pan = Lib.vec(Mouse.screen_x, Mouse.screen_y)
+        start_pan = vec(Mouse.screen_x, Mouse.screen_y)
         Mouse.set_state( 'scrolling')
     end
 end 
@@ -454,7 +454,7 @@ end
 
 function Mouse.pressed( x, y, button )
     if button == 3 then
-        start_pan = Lib.vec(Mouse.screen_x, Mouse.screen_y)
+        start_pan = vec(Mouse.screen_x, Mouse.screen_y)
         Mouse.set_state( 'scrolling')
     end
     if Mouse._pressed[ Mouse.state] then Mouse._pressed[ Mouse.state]( x,y,button) end
