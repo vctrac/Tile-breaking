@@ -16,8 +16,15 @@ function FromId(id)
 end
 function print( ...) --This function prints the filename and linenumber of where it was called from
     local info = debug.getinfo(2,"Sl");
-    local str  = info.source:match('%w+[^.lua]',2)
-    old_print(string.format("%s:%d >",str ,info.currentline), ...)
+    -- local str  = info.source:match('%w+[^.lua]',2)
+    local filename  = info.source:match("(.+)%..+$",2) --removes file extension/ everything after the dot
+    old_print(string.format("%s %d >",filename ,info.currentline), ...)
+end
+function printf( s, ...) --same as before, but formated
+    local fs = string.format(s,...)
+    local info = debug.getinfo(2,"Sl")
+    local filename  = info.source:match("(.+)%..+$",2)
+    old_print(string.format("%s %d >",filename ,info.currentline), fs)
 end
 function Loop(i, n)
     local z = i - 1

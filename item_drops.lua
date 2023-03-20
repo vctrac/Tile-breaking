@@ -25,7 +25,6 @@ local item_specs = {
 
 local gravityAccel  = 500 -- pixels per second^2
 
-
 local new_item = class:extend()
 function new_item:new( name, x, y)
     self.x, self.y = x,y

@@ -54,6 +54,9 @@ res.quads = {
     grass = lg.newQuad( 96, 0, ts, ts, sw, sh ),
     gravel = lg.newQuad( 96, 32, ts, ts, sw, sh ),
     blocker = lg.newQuad( 0, 64, ts, ts, sw, sh ),
+    plank = lg.newQuad( 0, 32, ts, ts, sw, sh ),
+    wood = lg.newQuad( 64, 32, ts, ts, sw, sh ),
+    leaf = lg.newQuad( 96, 32, ts, ts, sw, sh ),
     light = lg.newQuad( 129, 33, ts-2, ts-2, sw, sh ),
     frame = lg.newQuad( 32, 64, ts, ts, sw, sh ),
     --16x SPRITES

@@ -45,7 +45,7 @@ function Light.add(id,x,y,f) --any: id, integer: pos_x, integer: pos_y, unsigned
 end
 function Light.add_sky(y,f) -- integer: pos_y, unsigned_float: force
     for i=1,Light.w do
-        sources["sky_light"..i] = {x=i, y=y, f=f or 1}
+        sources["sky_light"..i] = {x=i, y=y, f=f or 1, sun=true}
         Light.quant = Light.quant +1
     end
     Light.update()
@@ -86,7 +86,7 @@ function Light.update()
             local un = units[x] and units[x][y]
             local id = x..','..y
             local mt = GAME.map:get_tile(id)
-            local opacity = GAME.map.get_info(mt.id, "opacity")*(mul or 1)
+            local opacity = mt and GAME.map.get_info(mt.id, "opacity")*(mul or 1) or 0
             local gm = f -opacity
             if un and (un < gm)  then
                 gm = gm>=0.1 and gm or 0
@@ -94,45 +94,100 @@ function Light.update()
                 table.insert(src.queue, {x=x, y=y, f=gm})
             end
         end
-        
-        while (#src.queue>0) do
-            local b = table.remove(src.queue, 1)
-        
-            -- up propagation
-            if (b.y-1 > 0) then
-                p1(b.x, b.y-1, b.f)
+        local function p2(x,y,f, mul)
+            local un = units[x] and units[x][y]
+            local id = x..','..y
+            local mt = GAME.map:get_tile(id)
+            local tile_opacity = GAME.map.get_info(mt.id, "opacity")*(mul or 1)
+            local opacity = mt.id=="air" and 0.05 or tile_opacity
+            local gm = f -opacity
+            if un and (un < gm)  then
+                gm = gm>=0.1 and gm or 0
+                units[x][y] = gm
+                table.insert(src.queue, {x=x, y=y, f=gm})
             end
-            -- down propagation
-            if (b.y+1 <= Light.h) then
-                p1(b.x, b.y+1, b.f)
-            end
-            -- left propagation
-            if (b.x-1 > 0) then
-                p1(b.x-1, b.y, b.f)
-            end
-            -- right propagation
-            if (b.x+1 <= Light.w) then
-                p1(b.x+1, b.y, b.f)
-            end
+        end
+        if src.sun then
+            while (#src.queue>0) do
+                local b = table.remove(src.queue, 1)
+            
+                -- up propagation
+                -- if (b.y-1 > 0) then
+                --     p1(b.x, b.y-1, b.f)
+                -- end
+                -- down propagation
+                if (b.y+1 <= Light.h) then
+                    p2(b.x, b.y+1, b.f)
+                end
+                -- left propagation
+                if (b.x-1 > 0) then
+                    p2(b.x-1, b.y, b.f)
+                end
+                -- right propagation
+                if (b.x+1 <= Light.w) then
+                    p2(b.x+1, b.y, b.f)
+                end
 
-            -- the next 4 IF statements make the light more round
-            -- disable it for more performance or a diamond shape
+                -- the next 4 IF statements make the light more round
+                -- disable it for more performance or a diamond shape
 
-            -- top_left propagation
-            if (b.x-1 > 0) and (b.y-1 > 0) then
-                p1(b.x-1, b.y-1, b.f, 1.5)
+                -- top_left propagation
+                -- if (b.x-1 > 0) and (b.y-1 > 0) then
+                --     p1(b.x-1, b.y-1, b.f, 1.5)
+                -- end
+                -- top_right propagation
+                -- if (b.x+1 <= Light.w) and (b.y-1 > 0) then
+                --     p1(b.x+1, b.y-1, b.f, 1.5)
+                -- end
+                -- botton_right propagation
+                -- if (b.x+1 <= Light.w) and (b.y+1 <= Light.h) then
+                --     p1(b.x+1, b.y+1, b.f, 1.5)
+                -- end
+                -- -- botton_left propagation
+                -- if (b.x-1 >0) and (b.y+1 <= Light.h) then
+                --     p1(b.x-1, b.y+1, b.f, 1.5)
+                -- end
             end
-            -- top_right propagation
-            if (b.x+1 <= Light.w) and (b.y-1 > 0) then
-                p1(b.x+1, b.y-1, b.f, 1.5)
-            end
-            -- botton_right propagation
-            if (b.x+1 <= Light.w) and (b.y+1 <= Light.h) then
-                p1(b.x+1, b.y+1, b.f, 1.5)
-            end
-            -- botton_left propagation
-            if (b.x-1 >0) and (b.y+1 <= Light.h) then
-                p1(b.x-1, b.y+1, b.f, 1.5)
+        else
+            while (#src.queue>0) do
+                local b = table.remove(src.queue, 1)
+            
+                -- up propagation
+                if (b.y-1 > 0) then
+                    p1(b.x, b.y-1, b.f)
+                end
+                -- down propagation
+                if (b.y+1 <= Light.h) then
+                    p1(b.x, b.y+1, b.f)
+                end
+                -- left propagation
+                if (b.x-1 > 0) then
+                    p1(b.x-1, b.y, b.f)
+                end
+                -- right propagation
+                if (b.x+1 <= Light.w) then
+                    p1(b.x+1, b.y, b.f)
+                end
+
+                -- the next 4 IF statements make the light more round
+                -- disable it for more performance or a diamond shape
+
+                -- top_left propagation
+                if (b.x-1 > 0) and (b.y-1 > 0) then
+                    p1(b.x-1, b.y-1, b.f, 1.5)
+                end
+                -- top_right propagation
+                if (b.x+1 <= Light.w) and (b.y-1 > 0) then
+                    p1(b.x+1, b.y-1, b.f, 1.5)
+                end
+                -- botton_right propagation
+                if (b.x+1 <= Light.w) and (b.y+1 <= Light.h) then
+                    p1(b.x+1, b.y+1, b.f, 1.5)
+                end
+                -- botton_left propagation
+                if (b.x-1 >0) and (b.y+1 <= Light.h) then
+                    p1(b.x-1, b.y+1, b.f, 1.5)
+                end
             end
         end
     end

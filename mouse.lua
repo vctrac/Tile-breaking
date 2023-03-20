@@ -71,8 +71,8 @@ local og_screen_y = 0
 local target_scale = 1
 local start_pan = vec()
 local offset = vec()
-local cam_v = vec()
-local cam_p = vec()
+local cam_vel = vec()
+local cam_pos = vec()
 local img_scale = 1.1
 local cursor_actual = ''
 local cursor_old = ''
@@ -114,6 +114,8 @@ function Mouse.init( mw, mh, ts)
 
     tile_size = ts
     tile_size_half = ts*0.5
+
+    cam_pos = vec(Camera.x, Camera.y)
 end
 Mouse._pressed = {
     pickaxe = function( x, y, b)
@@ -140,8 +142,8 @@ Mouse._pressed = {
     -- end,
     -- zooming = function( x, y, b)
         
-        -- cam_v.x, cam_v.y = 0,0
-        -- cam_p = vec(Camera.x, Camera.y)
+        -- cam_vel.x, cam_vel.y = 0,0
+        -- cam_pos = vec(Camera.x, Camera.y)
     -- end,
     -- cross = function( x, y, b)
     -- end,
@@ -169,10 +171,11 @@ Mouse._released = {
     scrolling = function( x, y, b)
         if b == 3 then
             Mouse.drag = false
-            cam_v = vec()
+            cam_vel = vec()
             Camera.focus = last_cam_focus
             Mouse.set_state( 'eye')
             Mouse.uptade_tile()
+            Camera:lookAt( lume.round(Mouse.camera_x,0.1), lume.round(Mouse.camera_y,0.1))
         end
     end,
     -- zooming = function( x, y, b)
@@ -244,19 +247,20 @@ Mouse.zooming = function( dt)
         else
             Mouse.scale = Mouse.scale + dif*10*dt
         end
-            local b4_zoom_x, b4_zoom_y = Mouse.x, Mouse.y
+        local before_zoom_x, before_zoom_y = Mouse.x, Mouse.y
 
-            Camera:zoomTo( Mouse.scale)
+        Camera:zoomTo( Mouse.scale)
 
-            local after_zoom_x, after_zoom_y = Camera:mousePosition()
-            
-            local dx = b4_zoom_x -after_zoom_x
-            local dy = b4_zoom_y -after_zoom_y
-            
-            Camera:move( dx, dy)
-            
-            cam_v.x, cam_v.y = 0,0
-            cam_p.x, cam_p.y = Camera.x, Camera.y
+        local after_zoom_x, after_zoom_y = Camera:mousePosition()
+        
+        local dx = before_zoom_x -after_zoom_x
+        local dy = before_zoom_y -after_zoom_y
+        
+        Camera:lookAt( lume.round(Camera.x +dx,0.1), lume.round(Camera.y +dy,0.1))
+        -- Camera:move( dx, dy)
+        
+        cam_vel.x, cam_vel.y = 0,0
+        cam_pos.x, cam_pos.y = Camera.x, Camera.y
     else
         Mouse.uptade_tile()
     end
@@ -270,9 +274,9 @@ Mouse.scrolling = function( dt)
         local dy = (Mouse.screen_y - start_pan.y)
         Mouse.camera_x = offset.x - dx/Mouse.scale
         Mouse.camera_y = offset.y - dy/Mouse.scale
-        Camera:lookAt( offset.x - dx/Mouse.scale, offset.y - dy/Mouse.scale)
-        cam_v.x, cam_v.y = 0,0
-        cam_p = vec(Camera.x, Camera.y)
+        Camera:lookAt( Mouse.camera_x, Mouse.camera_y)
+        cam_vel.x, cam_vel.y = 0,0
+        cam_pos = vec(Camera.x, Camera.y)
     else
         if lm.isDown( 3) or lk.isDown('lctrl') then
             local cx = math.abs( Mouse.screen_x-og_screen_x)--/Camera.scale
@@ -285,7 +289,7 @@ Mouse.scrolling = function( dt)
                 Camera.focus = Mouse.id
                 offset.x = Camera.x
                 offset.y = Camera.y
-
+                
                 -- print(last_cam_focus, Camera.focus)
                 -- og_screen_x = Mouse.screen_x
                 -- og_screen_y = Mouse.screen_y
@@ -328,33 +332,33 @@ function Mouse.update( dt)
     
 
     --WASD movement
-    if Mouse.state~="scrolling" or Mouse.state~="zooming" then
+    if Mouse.state~="scrolling" and Mouse.state~="zooming" then
         if love.keyboard.isDown('lshift') then CAM_MOVE_SPEED = 500 end
         if love.keyboard.isDown('w') then
-            cam_v.y = math.max(cam_v.y - CAM_MOVE_SPEED*dt, -CAM_MOVE_SPEED)
+            cam_vel.y = math.max(cam_vel.y - CAM_MOVE_SPEED*dt, -CAM_MOVE_SPEED)
         elseif love.keyboard.isDown('s') then
-            cam_v.y = math.min(cam_v.y + CAM_MOVE_SPEED*dt, CAM_MOVE_SPEED)
-        elseif cam_v.y~=0 then
-            cam_v.y = cam_v.y -cam_v.y*CAM_STOP_SPEED*dt
+            cam_vel.y = math.min(cam_vel.y + CAM_MOVE_SPEED*dt, CAM_MOVE_SPEED)
+        elseif cam_vel.y~=0 then
+            cam_vel.y = cam_vel.y -cam_vel.y*CAM_STOP_SPEED*dt
         end
         if love.keyboard.isDown('a') then
-            cam_v.x = math.max(cam_v.x - CAM_MOVE_SPEED*dt, -CAM_MOVE_SPEED)
+            cam_vel.x = math.max(cam_vel.x - CAM_MOVE_SPEED*dt, -CAM_MOVE_SPEED)
         elseif love.keyboard.isDown('d') then
-            cam_v.x = math.min(cam_v.x + CAM_MOVE_SPEED*dt, CAM_MOVE_SPEED)
-        elseif cam_v.x~=0 then
-            cam_v.x = cam_v.x -cam_v.x*CAM_STOP_SPEED*dt
+            cam_vel.x = math.min(cam_vel.x + CAM_MOVE_SPEED*dt, CAM_MOVE_SPEED)
+        elseif cam_vel.x~=0 then
+            cam_vel.x = cam_vel.x -cam_vel.x*CAM_STOP_SPEED*dt
         end
-        if cam_v.y~=0 or cam_v.x~=0 then
-            cam_p = cam_p + cam_v*dt
-            if math.abs(cam_v.x)<0.05 then
-                cam_v.x = 0
-                cam_p.x = math.floor(cam_p.x)
+        if cam_vel.y~=0 or cam_vel.x~=0 then
+            cam_pos = cam_pos + cam_vel*dt
+            if math.abs(cam_vel.x)<0.01 then
+                cam_vel.x = 0
+                -- cam_pos.x = lume.round(cam_pos.x, 0.5)
             end
-            if math.abs(cam_v.y)<0.05 then
-                cam_v.y = 0
-                cam_p.y = math.floor(cam_p.y)
+            if math.abs(cam_vel.y)<0.01 then
+                cam_vel.y = 0
+                -- cam_pos.y = lume.round(cam_pos.y, 0.5)
             end
-            Camera:lookAt( cam_p.x, cam_p.y)
+            Camera:lookAt( lume.round(cam_pos.x, 0.1), lume.round(cam_pos.y, 0.1))
         end
     -- else
         if not(old_gp==Mouse.grid_position) then
@@ -401,14 +405,14 @@ end
 function Mouse.draw()
     
     
-    local t = GAME.map:get_tile( Mouse.grid_position:unpack())
-    if t and GAME.map.is_solid( t.id) then
-        local tx,ty = (t.x-1)*tile_size, (t.y-1)*tile_size
-        lg.setColor(1,1,1)
-        lg.draw( GAME.img.tileset, GAME.quads[t:get_id()], tile_size_half+tx, tile_size_half+ty, 0, img_scale, img_scale,tile_size_half,tile_size_half)
-        -- lg.setColor(1,1,1,0.5)
-        -- lg.rectangle('line', tx, ty, tile_size, tile_size)
-    end
+    -- local t = GAME.map:get_tile( Mouse.grid_position:unpack())
+    -- if t and GAME.map.is_solid( t.id) then
+    --     local tx,ty = (t.x-1)*tile_size, (t.y-1)*tile_size
+    --     lg.setColor(1,1,1)
+    --     lg.draw( GAME.img.tileset, GAME.quads[t:get_id()], tile_size_half+tx, tile_size_half+ty, 0, img_scale, img_scale,tile_size_half,tile_size_half)
+    --     -- lg.setColor(1,1,1,0.5)
+    --     -- lg.rectangle('line', tx, ty, tile_size, tile_size)
+    -- end
 
     for _,gt in pairs(Mouse.visual_grid) do
         if gt.l>0 then
@@ -421,18 +425,16 @@ function Mouse.wheelmoved(_, dy)
 
     
     local df = target_scale*0.1
-    local prezoom = target_scale
     target_scale = lume.clamp(target_scale + dy *df,min_scale,max_scale)
     if math.abs(target_scale - lume.round(target_scale))<(df*0.9) then
         target_scale = lume.round(target_scale)
     end
-    if prezoom ~= target_scale then
-        cursor_actual = dy<0 and "zoom_out" or "zoom_in"
-    end
+    cursor_actual = dy<0 and "zoom_out" or "zoom_in"
+
     if Mouse.scale ~= target_scale and Mouse.get_state( ) ~= 'zooming' then
         if Mouse.drag then --disable drag if scrolling's state is active to avoid no cursor bug
             Mouse.drag = false
-            cam_v = vec()
+            cam_vel = vec()
             Camera.focus = last_cam_focus
         end
         Mouse.set_state( 'zooming')
@@ -502,13 +504,15 @@ function Mouse.uptade_tile()
 
             light_level = Light.get_light_level(gx,gy)
             local tx,ty = (gx-1)*tile_size, (gy-1)*tile_size
-            if not Mouse.visual_grid[gx..':'..gy] then
-                Mouse.visual_grid[gx..':'..gy] = {c=GAME.map.get_color(tile.id),l=1,x=tx,y=ty}
-            else
-                Mouse.visual_grid[gx..':'..gy].l = 1
-                Mouse.visual_grid[gx..':'..gy].c = GAME.map.get_color(tile.id)
+            if tile.id~="air" then
+                if not Mouse.visual_grid[gx..':'..gy] then
+                    Mouse.visual_grid[gx..':'..gy] = {c=GAME.map.get_color(tile.id),l=1,x=tx,y=ty}
+                else
+                    Mouse.visual_grid[gx..':'..gy].l = 1
+                    Mouse.visual_grid[gx..':'..gy].c = GAME.map.get_color(tile.id)
+                end
             end
-            
+            -- print(light_level)
             state = state_by_type[ obj.type]
         else
             state = 'eye'
