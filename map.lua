@@ -24,9 +24,10 @@ local new_type = function(name, opacity, durability, breakable, solid, invisible
 end
 local TILE_TYPE = {
     air = new_type( 'air', 0.1, 0,false,false,true),
-    dirt = new_type( 'dirt', 1, 3, true, true),
+    l_air = new_type( 'air', 0.01, 0,false,false,true),
+    dirt = new_type( 'dirt', 0.8, 3, true, true),
     gravel = new_type( 'gravel', 1, 3, true, true),
-    grass = new_type( 'grass', 1, 3, true, true),
+    grass = new_type( 'grass', 0.8, 3, true, true),
     leaf = new_type( 'leaf', 1, 3, true, true),
     wood = new_type( 'wood', 1, 3, true, true),
     plank = new_type( 'plank', 1, 3, true, true),
@@ -37,7 +38,7 @@ local TILE_TYPE = {
 local TILE_COLOR = {
     dirt = {0.33,0.19,0.1},
     grass = {0.2,0.23,0.12},
-    air = {0.1,0.25,0.3},
+    -- air = {0.1,0.25,0.3},
     stone = {0.25,0.22,0.21},
     leaf = {0,0.32,0.1},
     wood = {0.55,0.3,0.1},
@@ -58,6 +59,8 @@ function cell:new( x, y, w, h, id)
 end
 function cell:get_id( ) return self.id
 end
+function cell:get_name( ) return TILE_TYPE[self.id].name
+end
 function cell:get_position( ) return self.x, self.y
 end
 -- function cell:destroy()
@@ -66,19 +69,15 @@ end
     -- end
 -- end
 
--- local cell_types = {'dirt','plank','stone','wood','leaf'}
 
 local blurShader2 = love.graphics.newShader("blur2.fs")
 
 local tile_size = GAME.tile_size
-local dirt_start = 1
-local stone_start = math.floor(GAME.map_h*0.3)
+local dirt_start = 16
+local stone_start = dirt_start*3
 local layers_num = 4
-local depth_3D = -0.004
+local depth_3D = -5*10^-3
 -- local border_size = 6
--- local GENERATE = function( table) -------------------------------TODO
-
--- end
 
 ---------------------------------------------------------------------------GENERATION
 local function inside_circle( tx, ty, radius)
@@ -121,11 +120,17 @@ local function set_points(sx, sy, lenght)
 end
 local function generate_map(w,h)
     local grid = {}
+    local _c = 0
     for x=1,w do
         grid[x] = {}
+        _c = _c+0.1
         for y=1,h do
+            
+            local stn = stone_start+math.sin(_c)*math.random(10)
             local tile_type='dirt'
-            if y>stone_start+math.random(-3,3) then
+            if y<dirt_start then
+                tile_type="air"
+            elseif y>stn then
                 tile_type="stone"
             end
 
@@ -157,16 +162,20 @@ local function generate_map(w,h)
     end
     --add caves
     for i=1,math.floor(mwh*0.15) do
-        foo("air",10,5,h)
+        foo("air",8,12,h)
     end
-    local ground_y = math.random(2,10)
+    local ground_y = math.random(2,8)
     grid.ground = {}
     for i=1,w do
         -- ground_y = ground_y +math.sin(i)*math.random()
-        ground_y = ground_y +math.sin(i*math.random())
+        local ni = i*2*math.random()
+        ground_y = math.max(ground_y +math.sin(ni), dirt_start)
         grid.ground[i] = math.floor(ground_y)
-        for j=1,grid.ground[i] do
-            grid[i][j] = "air"
+        for j=1,grid.ground[i]-1 do
+            grid[i][j] = "l_air"
+        end
+        if grid[i][grid.ground[i]]=="dirt" then
+            grid[i][grid.ground[i]]="grass"
         end
     end
     return grid
@@ -189,16 +198,16 @@ Map.new = function( self, w, h)
     local grid = generate_map(w,h)
 
 
-    -- lg.setCanvas(self.dark_canvas)
-    -- lg.clear()
-    -- lg.setColor(1,1,1)
-    -- for x=0,w-1 do
+    lg.setCanvas(self.dark_canvas)
+    lg.clear()
+    lg.setColor(1,1,1)
+    for x=0,w-1 do
     --     -- print(grid.ground[x+1])
-    --     for y=grid.ground[x+1],h-1 do
-    --         lg.draw( GAME.img.tileset, GAME.quads["dark"], x*tile_size, y*tile_size)
-    --     end
-    -- end
-    -- lg.setCanvas()
+        for y=grid.ground[x+1],h-1 do
+            lg.draw( GAME.img.tileset, GAME.quads["dark"], x*tile_size, y*tile_size)
+        end
+    end
+    lg.setCanvas()
 
     -- local sh = self.h-tile_size
     -- local keyset = {}
@@ -267,11 +276,11 @@ Map.new = function( self, w, h)
             --     GAME.world:add(self.units[id], tx,ty,tile_size,tile_size)
             -- end
             --add collision box over the first layer -needs work    !TODO
-            if y==grid.ground[x]+1 and TILE_TYPE[tile_type]["breakable"] then
-                local tx = x*tile_size-tile_size
-                local ty = y*tile_size-tile_size
-                GAME.world:add(self.units[id], tx,ty,tile_size,tile_size)
-            end
+            -- if y==grid.ground[x]+1 and TILE_TYPE[tile_type]["breakable"] then
+            --     local tx = x*tile_size-tile_size
+            --     local ty = y*tile_size-tile_size
+            --     GAME.world:add(self.units[id], tx,ty,tile_size,tile_size)
+            -- end
         end
         -- local gy = grid.ground[x]+1
         -- local tx = x*tile_size-tile_size
@@ -286,10 +295,10 @@ Map.update_canvas = function( self)
     lg.setColor(1,1,1)
     for _,s in pairs( self.units) do
         local id = s:get_id()
-        if not TILE_TYPE[id].visible then goto next end
-        local x,y = (s.x-1)*tile_size, (s.y-1)*tile_size
-        lg.draw( GAME.img.tileset, GAME.quads[self.get_name(id)], x, y)
-        ::next::
+        if TILE_TYPE[id].visible then
+            local x,y = (s.x-1)*tile_size, (s.y-1)*tile_size
+            lg.draw( GAME.img.tileset, GAME.quads[TILE_TYPE[id].name], x, y)
+        end
     end
 
     lg.setCanvas()
@@ -318,14 +327,13 @@ Map.draw = function( self)
         local xx = cx-dx
         local yy = cy-dy
         
-        -- if i==layers_num then
-            -- lg.setColor(0.2,0.2,0.2)
-            -- lg.draw( self.dark_canvas,xx,yy,0,sc,sc,cx, cy)
-        -- else
-            local rgb = 1-i*0.1
-            lg.setColor(rgb,rgb,rgb)
-            lg.draw( self.light_canvas,xx,yy,0,sc,sc,cx, cy)
-        -- end
+        if i==layers_num then
+            lg.setColor(0.2,0.2,0.2)
+            lg.draw( self.dark_canvas,xx,yy,0,sc,sc,cx, cy)
+        end
+        local rgb = 1-i*0.1
+        lg.setColor(rgb,rgb,rgb)
+        lg.draw( self.light_canvas,xx,yy,0,sc,sc,cx, cy)
     end
     lg.setColor(1,1,1)
     lg.draw( self.canvas)
@@ -397,11 +405,11 @@ Map.get_info = function( id, info)
     end
 end
 Map.get_name = function( id)
-    -- local t = TILE_TYPE[id]
-    -- if t then
-    --     return TILE_TYPE[id].name
-    -- end
-    return Map.get_info(id, "name")
+    local t = TILE_TYPE[id]
+    if t then
+        return TILE_TYPE[id].name
+    end
+    -- return Map.get_info(id, "name")
 end
 Map.get_color = function( id)
     return TILE_COLOR[id]
@@ -480,8 +488,8 @@ Map.break_tile = function( self, x,y)
         GAME.sfx.block_break:play()
         -- GAME.update_lights( )
         -- self:update_canvas()
-        if GAME.world:hasItem(t) then GAME.world:remove(t) end
-        self:update_collisions(x,y)
+        -- if GAME.world:hasItem(t) then GAME.world:remove(t) end
+        -- self:update_collisions(x,y)
         return true
         -- if drops then
         --     local n = #drops

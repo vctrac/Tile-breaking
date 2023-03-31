@@ -110,7 +110,7 @@ function light:new( name,x,y)
     -- err()
     light.super.new( self, name, x, y)
     
-    print(self.name,x,y)
+    -- print(self.name,x,y)
     self.use = true
     Light.add( self.id, self.gx, self.gy, 1.1)
     GAME.map:update_canvas()
@@ -205,11 +205,11 @@ local item = {
     --     end
     -- end,
     get_at = function( self, x,y)
-        for _,k in ipairs(self.dynamic) do
-            if not k.dead and PointInside( x, y, k.x, k.y, k.w, k.h) then
-                return k
-            end
-        end
+        -- for _,k in ipairs(self.dynamic) do
+        --     if not k.dead and PointInside( x, y, k.x, k.y, k.w, k.h) then
+        --         return k
+        --     end
+        -- end
         for _,k in ipairs(self.static) do
             if not k.dead and PointInside( x, y, k.x, k.y, k.w, k.h) then
                 return k
@@ -227,24 +227,24 @@ local item = {
         -- end
     end,
     update = function(self, dt)
-        local rmd,rms = {},{}
-        for i,k in ipairs(self.dynamic) do
-            k:move_colliding(dt)
-            if k.dead then
-                table.insert(rmd, i)
-            end
-        end
+        local rmd,rms = 0,0
+        -- for i,k in ipairs(self.dynamic) do
+        --     k:move_colliding(dt)
+        --     if k.dead then
+        --         rmd=i
+        --     end
+        -- end
         for i,k in ipairs(self.static) do
             if k.dead then
-                table.insert(rms, i)
+                rms=i
             end
         end
-        for _,dead in ipairs(rmd) do
-            local it = table.remove( self.dynamic, dead)
-            it:destroy()
-        end
-        for _,dead in ipairs(rms) do
-            local it = table.remove( self.static, dead)
+        -- if rmd>0 then
+        --     local it = table.remove( self.dynamic, rmd)
+        --     it:destroy()
+        -- end
+        if rms>0 then
+            local it = table.remove( self.static, rms)
             it:destroy()
         end
     end

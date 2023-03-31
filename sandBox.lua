@@ -8,8 +8,8 @@ local Weight = {
     dust = 4
 }
 local water_spread = 150
-local div = 8 --int, min(1), max(tile_size) | decrease 'div' to increase performance
-local tile_size = 32/div
+local units_per_tile = 8 --int, min(1), max(tile_size) | decrease 'units_per_tile' to increase performance, keep it power of 2.
+local tile_size = 32/units_per_tile
 local unit = class:extend()
 
 
@@ -180,8 +180,8 @@ local update_cell = {
 }
 
 SandBox.init = function(self, w,h)
-    self.h = h*div
-    self.w = w*div
+    self.h = h*units_per_tile
+    self.w = w*units_per_tile
     self.qh = h
     self.qw = w
 
@@ -193,11 +193,11 @@ SandBox.init = function(self, w,h)
     end
     for y=1,h do
         for x=1,w do
-            local yy = y*div-div
-            local xx = x*div-div
+            local yy = y*units_per_tile
+            local xx = x*units_per_tile
             self.quads[ToId(y,x)] = {
-                start_y = yy,
-                start_x = xx,
+                start_y = yy-units_per_tile,
+                start_x = xx-units_per_tile,
                 empty = true
             }
         end
@@ -206,8 +206,8 @@ end
 SandBox.update_quads = function(self,tx,ty,wall)
     local id = ToId(ty,tx)
     self.quads[id].empty = not wall
-    for y=1,div do
-        for x=1,div do
+    for y=1,units_per_tile do
+        for x=1,units_per_tile do
             local xx = self.quads[id].start_x+x
             local yy = self.quads[id].start_y+y
             self.units[yy][xx] = unit(wall and "wall" or "empty")
@@ -230,16 +230,14 @@ SandBox.update = function(self, dt)
     self.time = self.time + dt
     for _,quad in pairs(self.quads) do
         if quad.empty then
-            for y=1,div do
+            for y=1,units_per_tile do
                 local yy = quad.start_y+y
-                for x=1,div do
+                for x=1,units_per_tile do
                     local xx = quad.start_x+x
                     local id = self.units[yy][xx].id
-                    if ignored_types[id] then
-                        goto next
+                    if not ignored_types[id] then
+                        update_cell[id](dt, self.time, xx,yy)
                     end
-                    update_cell[id](dt, self.time, xx,yy)
-                    ::next::
                 end
             end
         end
@@ -258,7 +256,7 @@ SandBox.draw = function(self)
             end
         end
     end
-    if _DEBUG then
+    if DEBUG.enabled then
         for _,quad in pairs(self.quads) do
             if quad.empty then
                 lg.setColor(1,0,0,0.3)

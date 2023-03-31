@@ -10,14 +10,14 @@ math.random()
 require("util")
 
 lume = require "LIBRARY/lume"
-sfxr = require "LIBRARY/sfxr"
-timer = require "LIBRARY/HUMP.timer"
-camera = require "LIBRARY/HUMP.camera"
-class = require "LIBRARY/classic"
+-- sfxr = require "LIBRARY/sfxr"
+timer = require "LIBRARY/HUMP/timer"
+cam = require "LIBRARY/HUMP/camera"
 vec = require "LIBRARY/HUMP/vector"
-bump = require "LIBRARY/bump"
+class = require "LIBRARY/classic"
+-- bump = require "LIBRARY/bump"
 
-Camera = camera(0,0, 1)
+Camera = cam(0,0, 1)
 Screen = {
     w = lg.getWidth(),
     h = lg.getHeight(),
@@ -35,12 +35,21 @@ Screen = {
 }
 
 local RES = require 'res'
+DEBUG = {
+    enabled = false,
+    lights = true,
+    to_draw = {},
+}
+
+DEBUG.add = function(method)
+    table.insert(DEBUG.to_draw, method)
+end
 
 GAME = {
     tile_size = 32,
     half_tile = 16,
-    map_w = 32,
-    map_h = 64,
+    map_w = 128,
+    map_h = 128,
 }
 GAME.real_map_w = GAME.map_w*GAME.tile_size
 GAME.real_map_h = GAME.map_h*GAME.tile_size
@@ -48,7 +57,7 @@ GAME.img = RES.img
 GAME.quads = RES.quads
 GAME.sfx = RES.sfx
 GAME.font = RES.font
-GAME.world = bump.newWorld(64)
+-- GAME.world = bump.newWorld(64)
 GAME.canvas = lg.newCanvas(GAME.map_w*GAME.tile_size,GAME.map_h*GAME.tile_size)
 -- GAME.LightWorld = LightWorld:new()
 local drops = require 'item_drops'
@@ -91,7 +100,7 @@ function GAME.get_item( x, y)
     local it = GAME.has_item( x, y)
     if it then
         Storage:add(it)
-        printf( "%s was collected",it.name)
+        -- printf( "%s was collected",it.name)
         it.dead = true
         local tile = GAME.map:get_tile( it.gx, it.gy)
         tile.item = false
@@ -107,8 +116,9 @@ function GAME.whats_here(x,y,gx, gy)
     local i,t
     local tile = GAME.map:get_tile(gx,gy)
     -- local tid = GAME.map.get_name( tile.id)
+    local breakable = GAME.map.is_breakable(tile.id)
 
-    if tile.id=='air' then
+    if GAME.map.get_name(tile.id)=='air' then
         local item = drops:get_at(x, y)
         -- print(x, y)
         if item then
@@ -118,8 +128,8 @@ function GAME.whats_here(x,y,gx, gy)
             i={id = tile.id, type ='empty'}
             t='air'
         end
-    elseif GAME.world:hasItem(tile) then
-        i = {id = tile.id, type = GAME.map.is_breakable(tile.id) and 'breakable' or 'empty'}
+    elseif breakable then
+        i = {id = tile.id, type = 'breakable'}
         t = 'block'
     else
         i = {id = tile.id, type = 'dark'}
@@ -128,22 +138,22 @@ function GAME.whats_here(x,y,gx, gy)
     return i,t
 end
 GAME.update_lights = function( )
-    Light.update()
+    Light.refresh()
 end
 GAME.break_tile = function(x,y)
     local t = GAME.map:get_tile(x,y)
     local solid = GAME.map.is_solid(t.id)
     local color = GAME.map.get_color(t.id)
 
-    -- Light.update()
+    -- Light.refresh()
     if GAME.map:break_tile(x,y) then
-        Light.update()
+        Light.refresh()
         GAME.map:update_canvas()
         -- SandBox:update_quads(x, y)
         -- if solid then
-            -- for _=1,math.random(8,32) do
-                -- SandBox:add("dust",x*GAME.tile_size-GAME.half_tile,y*GAME.tile_size-GAME.half_tile, {color = color})
-            -- end
+        --     for _=1,math.random(8,32) do
+        --         SandBox:add("dust",x*GAME.tile_size-GAME.half_tile,y*GAME.tile_size-GAME.half_tile, {color = color})
+        --     end
         -- end
     end
 end
@@ -164,7 +174,6 @@ end
 --  ▀         ▀       ▀         ▀       ▀▀▀▀▀▀▀▀▀▀▀       ▀        ▀▀ 
 -- local g3d = require "g3d"
 -- local tile3d = g3d.newModel("res/obj/cube.obj", "res/img/moon.png", {0,0,0})
-local lights_on = true
 local time = 0
 -- local layers_num = 4
 -- local depth_3D = -0.004
@@ -184,9 +193,10 @@ function love.load()
     blurShader1:send("Height", GAME.map_h*GAME.tile_size)
 
     --Initialize Dark layer
-    Light.init(GAME.map_w, GAME.map_h, GAME.tile_size)
+    Light.init(GAME.map_w, GAME.map_h)
     Light.add_sky(1, 1.1)
-    
+    DEBUG.add(Light.debug)
+
     Camera.speed = 2
     Camera.x_vel = 0
     Camera.y_vel = 0
@@ -197,7 +207,7 @@ function love.load()
     }
     -- Camera.focus = "mouse"
     Camera.focus = "mouse"
-    Camera:lookAt(GAME.real_map_w*0.5,0)
+    Camera:lookAt(GAME.real_map_w*0.5,GAME.real_map_h*0.1)
     -- Camera:set_boundaries( 0, GAME.map.w, 0,GAME.map.h)
 
     --Initialize Mouse and mouse_grid
@@ -211,7 +221,7 @@ function love.load()
     
     -- lg.setBackgroundColor(0.1,0.25,0.6)
     -- lg.setDefaultFilter("nearest", "nearest")
-    BackgroundImage = GradientMesh("vertical", {0,0.1,0.35}, {0.2,0.75,0.85})
+    BackgroundImage = GradientMesh("vertical", {0,0.55,0.65}, {0,0.15,0.1})
     -- GAME.map:add_sun( math.floor(GAME.map.w/64),1,1,{1,1,1}) --the fucking sun
     GAME.map:update_canvas()
     -- GAME.world:add(player, player.x, player.y, player.w, player.h)
@@ -247,8 +257,9 @@ function love.update( dt)
     --     end
     -- end
     -- g3d.camera.firstPersonMovement(dt)
+    Light.update( )
     -- SandBox:update( dt)
-    -- drops:update( dt)
+    drops:update( dt)
     Storage:update( dt)
     -- Player.update(dt)
     timer.update( dt)
@@ -285,34 +296,40 @@ function love.draw()
     GAME.map:draw()
     -- Player.draw()
     
-    if _DEBUG then
-        local visibleThings, len = GAME.world:getItems()
-        for i=1, len do
-            local xx = visibleThings[i].x
-            local yy = visibleThings[i].y
-            local ww = visibleThings[i].w or GAME.tile_size
-            local hh = visibleThings[i].h or GAME.tile_size
+    -- if DEBUG.enabled then
+        -- local visibleThings, len = GAME.world:getItems()
+        -- for i=1, len do
+        --     local xx = visibleThings[i].x
+        --     local yy = visibleThings[i].y
+        --     local ww = visibleThings[i].w or GAME.tile_size
+        --     local hh = visibleThings[i].h or GAME.tile_size
 
-            if visibleThings[i].id then
-                xx = xx*GAME.tile_size-GAME.tile_size
-                yy = yy*GAME.tile_size-GAME.tile_size
-            end
-            Rectangle.outline( xx,yy, ww,hh, {0,0.7,1})
-        end
-    end
+        --     if visibleThings[i].id then
+        --         xx = xx*GAME.tile_size-GAME.tile_size
+        --         yy = yy*GAME.tile_size-GAME.tile_size
+        --     end
+        --     Rectangle.outline( xx,yy, ww,hh, {0,0.7,1})
+        -- end
+    -- end
     -- SandBox:draw()
-    -- drops:draw()
+    drops:draw()
     -- if #Entities>0 then
     --     for _,e in ipairs(Entities) do
     --         e:draw()
     --     end
     -- end
     Mouse.draw()
-    if lights_on then
+    if DEBUG.lights then
         --apply blur shader over light layer
-        lg.setShader(blurShader1)
+        -- lg.setShader(blurShader1)
         Light.draw()
-        lg.setShader()
+        -- lg.setShader()
+    end
+
+    if DEBUG.enabled then
+        for _,draw in ipairs(DEBUG.to_draw) do
+            draw()
+        end
     end
 
 
@@ -326,7 +343,7 @@ function love.draw()
     lg.print( "mouse.gy "..Mouse.grid_position.y, 10,100)
     
     lg.print( Mouse.get_state(), 10, Screen.h-20)
-    Storage:draw()
+    -- Storage:draw()
     Mouse.draw_hud()
     -- tile3d:draw()
 
@@ -351,10 +368,11 @@ function love.keypressed(key, scancode, isrepeat)
     if key == "r" then
         GAME.map = MAP:new( GAME.map_w, GAME.map_h)
         GAME.map:update_canvas()
+        Light.refresh()
         -- table.insert(Entities, Bat(Mouse.x, Mouse.y))
     end
     if key == "l" then
-        lights_on = not lights_on
+        DEBUG.lights = not DEBUG.lights
     end
     if key == "h" then
         local d = ({ "coal", "stone", "iron", "gold"})[math.random(4)]
@@ -368,9 +386,9 @@ function love.keypressed(key, scancode, isrepeat)
         love.window.setVSync( love.window.getVSync()==1 and 0 or 1 )
     end
     if key == "f2" then
-        _DEBUG = not _DEBUG
+        DEBUG.enabled = not DEBUG.enabled
         
-        print("debug is",_DEBUG)
+        printf("debug is %s",(DEBUG.enabled and "enabled" or "disabled"))
     end
     if key == "escape" then
        love.event.quit()
@@ -385,7 +403,8 @@ function love.wheelmoved(x, y)
     Mouse.wheelmoved(x, y)
 end
 -- function love.mousemoved(x,y, dx, dy)
---     g3d.camera.firstPersonLook(dx,dy)
+    -- g3d.camera.firstPersonLook(dx,dy)
+    -- Light.set_active(Mouse,gy)
 -- end
 function love.mousepressed( x, y, button, istouch, presses )
     Mouse.pressed( x, y, button)
