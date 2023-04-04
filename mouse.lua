@@ -90,7 +90,7 @@ function Mouse.init( mw, mh, ts)
     Mouse.tile = "air"
     Mouse.tile_id = "air"
 
-    Mouse.camera_x = GAME.map.w/2
+    Mouse.camera_x = MAP.w/2
     Mouse.camera_y = 100 
     -- old_gp = v2(1,1)
     Mouse.grid_position = vec(1,1)
@@ -123,7 +123,7 @@ Mouse._pressed = {
             tile_hp = old_tile_hp -0.9
         end
         -- local gx,gy = Mouse.grid_position:unpack()
-        -- if not GAME.map:is_lighted( gx,gy) then return end
+        -- if not MAP:is_lighted( gx,gy) then return end
     end,
     -- sword = function( x, y, b)
         -- local gx,gy = Mouse.grid_position:unpack()
@@ -151,7 +151,7 @@ Mouse._pressed = {
 Mouse._released = {
     -- pickaxe = function( x, y, b)
     --     -- local gx,gy = Mouse.grid_position:unpack()
-    --     -- if not GAME.map:is_lighted( gx,gy) then return end
+    --     -- if not MAP:is_lighted( gx,gy) then return end
     --     -- Mouse:uptade_tile()
     -- end,
     -- sword = function( x, y, b)
@@ -194,12 +194,12 @@ Mouse.pickaxe = function( dt)
 
     if lm.isDown( 1) and not Mouse.drag then
         -- if not Mouse.tile_light then return end
-        -- local tile = GAME.map:get_tile(Mouse.grid_position.x, Mouse.grid_position.y)
+        -- local tile = MAP:get_tile(Mouse.grid_position.x, Mouse.grid_position.y)
         -- if not GAME.world:hasItem(Mouse.tile) then
         --     return
         -- end
 
-        if GAME.map.is_breakable( Mouse.tile_id) and tile_hp>0 then
+        if Mouse.tile.durability>0 and tile_hp>0 then
             tile_hp = tile_hp - TOOLS['pickaxe'].speed*dt
             
             if math.ceil(tile_hp)~=old_tile_hp then
@@ -299,16 +299,16 @@ Mouse.scrolling = function( dt)
 end
 Mouse.eye = function( dt)
     -- local gx,gy = Mouse.grid_position:unpack()
-    -- if not GAME.map:is_lighted( gx,gy) then return end
+    -- if not MAP:is_lighted( gx,gy) then return end
     -- if GAME.check_item( Mouse.x, Mouse.y) then
     --     Mouse:set_state( 'hand')
     -- end
     -- if not(old_gp==Mouse.grid_position) then
-        -- GAME.map:remove_light(old_gp.x, old_gp.y)
+        -- MAP:remove_light(old_gp.x, old_gp.y)
         -- old_gp = Mouse.grid_position
         -- Mouse.uptade_tile()
-        -- GAME.map:add_light(old_gp.x, old_gp.y,0.5,{1,1,5})
-        -- GAME.map:update_lights()
+        -- MAP:add_light(old_gp.x, old_gp.y,0.5,{1,1,5})
+        -- MAP:update_lights()
     -- end
 
 end
@@ -362,6 +362,7 @@ function Mouse.update( dt)
         end
     -- else
         if not(old_gp==Mouse.grid_position) then
+            Light.set(Mouse.id, {x =Mouse.grid_position.x, y=Mouse.grid_position.y})
             Mouse.uptade_tile()
             old_gp = Mouse.grid_position:clone()
         end
@@ -405,8 +406,8 @@ end
 function Mouse.draw()
     
     
-    -- local t = GAME.map:get_tile( Mouse.grid_position:unpack())
-    -- if t and GAME.map.is_solid( t.id) then
+    -- local t = MAP:get_tile( Mouse.grid_position:unpack())
+    -- if t and MAP.is_solid( t.id) then
     --     local tx,ty = (t.x-1)*tile_size, (t.y-1)*tile_size
     --     lg.setColor(1,1,1)
     --     lg.draw( GAME.img.tileset, GAME.quads[t:get_id()], tile_size_half+tx, tile_size_half+ty, 0, img_scale, img_scale,tile_size_half,tile_size_half)
@@ -485,7 +486,7 @@ function Mouse.uptade_tile()
     local gx,gy = Mouse.grid_position:unpack()
     local state = Mouse.state
     if not Mouse.drag then
-        local tile=GAME.map:get_tile( gx,gy)
+        local tile=MAP:get_tile_info( gx,gy)
         if tile then
             -- Light.set(Mouse.id,{x=Mouse.grid_position.x, y=Mouse.grid_position.y})
             show_item_name = false
@@ -496,17 +497,17 @@ function Mouse.uptade_tile()
                 hover_item_name:set( obj.name)
             elseif tipo == 'block' then
                 --if any neightbour tile is air and is lit then you can break it
-                local nei = GAME.map:get_neighbours(gx,gy)
+                local nei = MAP:get_neighbours(gx,gy)
                 local can_break_it
                 for i=1,#nei do
-                    if GAME.map.get_name(nei[i].id)=="air" and Light.get_light_level(nei[i].x,nei[i].y)>0 then
+                    if MAP.get_name(nei[i].id)=="air" then
                         can_break_it = true
                     end
                 end
                 if can_break_it then
                     Mouse.tile = tile
-                    Mouse.tile_id = GAME.map.get_name(tile.id)
-                    tile_hp = GAME.map.get_info( Mouse.tile_id, 'durability')*TOOLS['pickaxe'].force
+                    Mouse.tile_id = tile.name
+                    tile_hp = tile.durability*TOOLS['pickaxe'].force
                     old_tile_hp = math.ceil(tile_hp)
                 else
                     obj.type = "dark"
@@ -515,14 +516,14 @@ function Mouse.uptade_tile()
             Light.set_quad_active(gx,gy)
             light_level = Light.get_light_level(gx,gy)
             local tx,ty = (gx-1)*tile_size, (gy-1)*tile_size
-            if GAME.map.get_name(tile.id)~="air" then
-                if not Mouse.visual_grid[gx..':'..gy] then
-                    Mouse.visual_grid[gx..':'..gy] = {c=GAME.map.get_color(tile.id),l=1,x=tx,y=ty}
-                else
-                    Mouse.visual_grid[gx..':'..gy].l = 1
-                    Mouse.visual_grid[gx..':'..gy].c = GAME.map.get_color(tile.id)
-                end
-            end
+            -- if tile.name~="air" then
+            --     if not Mouse.visual_grid[gx..':'..gy] then
+            --         Mouse.visual_grid[gx..':'..gy] = {c=MAP.get_color(tile.id),l=1,x=tx,y=ty}
+            --     else
+            --         Mouse.visual_grid[gx..':'..gy].l = 1
+            --         Mouse.visual_grid[gx..':'..gy].c = MAP.get_color(tile.id)
+            --     end
+            -- end
             -- print(light_level)
             state = state_by_type[ obj.type]
         else

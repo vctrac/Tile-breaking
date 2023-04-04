@@ -11,7 +11,11 @@ local quads_size = tiles_per_quad*tile
 local units = {}
 local sources = {}
 local quads = {}
-
+local function gridPos_to_quadId(x,y)
+    local qx = 1+math.floor(x/tiles_per_quad)
+    local qy = 1+math.floor(y/tiles_per_quad)
+    return qx..':'..qy
+end
 Light = {}
 function Light.init( w,h)
     -- local div = d or 1 --TODO: set a conversion function for x,y Gridmap locations divided by div
@@ -45,8 +49,11 @@ function Light.init( w,h)
         end
     end
 end
-function Light.update_canvas()
+function Light.O_update_canvas()
     --TODO: get all active quads and update their canvas
+    
+    -- lg.setCanvas(Light.canvas)
+    -- lg.clear( )
     for _,quad in pairs(quads) do
         -- print(id)
         if quad.active then
@@ -57,17 +64,20 @@ function Light.update_canvas()
                 for y=1,tiles_per_quad do
                     local yy = quad.start_y+y
                     local c = units[xx][yy]
-
+                    -- print(c)
                     lg.setColor(c, c, c)
                     lg.rectangle("fill",(x-1)*tile,(y-1)*tile, tile, tile)
+                    -- lg.rectangle("line",(x-1)*tile,(y-1)*tile, tile, tile)
                 end
             end
+            
             lg.setCanvas()
             -- quad.active = false
         end
     end
+    -- lg.setCanvas()
 end
-function Light.O_update_canvas()
+function Light.update_canvas()
     --set a grayscale canvas
     lg.setCanvas(Light.canvas)
     lg.clear( )
@@ -81,17 +91,15 @@ function Light.O_update_canvas()
     lg.setCanvas()
 end
 function Light.set(id,opt)
-    print(opt.x, opt.y, opt.force)
+    -- print(opt.x, opt.y, opt.force)
     if opt.x then sources[id].x=opt.x end
     if opt.y then sources[id].y=opt.y end
     if opt.force then sources[id].f=opt.force end
+    sources[id].quad = gridPos_to_quadId(sources[id].x,sources[id].y)
     Light.refresh()
 end
 function Light.add(id,x,y,f) --any: id, integer: pos_x, integer: pos_y, unsigned_float: force
-    local qx = 1+math.floor(x/tiles_per_quad)
-    local qy = 1+math.floor(y/tiles_per_quad)
-
-    sources[id] = {x=x, y=y, f=f or 1, quad = qx..':'..qy}
+    sources[id] = {x=x, y=y, f=f or 1, quad = gridPos_to_quadId(x,y)}
     Light.quant = Light.quant +1
     Light.refresh()
 end
@@ -129,19 +137,22 @@ function Light.set_quad_active(gx,gy)
     end
 end
 function Light.update()
+    if not DEBUG.lights then return end
     --get screen to world and disables quads outise of it
-    -- local sx = 1+math.floor(Camera.x/quads_size)
-    -- local sy = 1+math.floor(Camera.y/quads_size)
+    local sx = Camera.x - Screen.w*0.5
+    local sy = Camera.y - Screen.h*0.5
+    local qs = quads_size
     -- local ex = 1+math.floor((Camera.x+Screen.w)/quads_size)
     -- local ey = 1+math.floor((Camera.y+Screen.h)/quads_size)
     -- if quads[ex..':'..ey] then
     --     quads[ex..':'..ey].active = false
     -- end
     for _,quad in pairs(quads) do
-        quad.active = BoxCollision(quad.screen_x+quads_size*2,quad.screen_y+quads_size*2,quads_size,quads_size, Camera.x,Camera.y,Screen.w+quads_size*2,Screen.h+quads_size*2)
+        quad.active = BoxCollision(quad.screen_x,quad.screen_y,qs,qs, sx,sy,Screen.w,Screen.h)
     end
 end
 function Light.refresh()
+    if not DEBUG.lights then return end
     for _,quad in pairs(quads) do
         if not quad.active then
             goto continue
@@ -168,8 +179,8 @@ function Light.refresh()
             local function foo(x,y,f)
                 local un = units[x] and units[x][y]
                 local id = x..','..y
-                local mt = GAME.map:get_tile(id)
-                local tile_opacity = GAME.map.get_info(mt.id, "opacity")
+                local mt = MAP:get_tile(id)
+                local tile_opacity = MAP.get_info(mt.id, "opacity")
                 local opacity = mt.id=="l_air" and 0.01 or tile_opacity
                 local gm = f -opacity
                 if un and (un < gm)  then
@@ -199,13 +210,13 @@ function Light.refresh()
                     foo(b.x+1, b.y, b.f)
                 end
             end
-        elseif quads[src.quad].active then
+        else--if quads[src.quad].active then
             -- err()
             local function bar(x,y,f, mul)
                 local un = units[x] and units[x][y]
                 local id = x..','..y
-                local mt = GAME.map:get_tile(id)
-                local opacity = mt and GAME.map.get_info(mt.id, "opacity")*(mul or 1) or 0
+                local mt = MAP:get_tile(id)
+                local opacity = mt and MAP.get_info(mt.id, "opacity")*(mul or 1) or 0
                 local gm = f -opacity
                 if un and (un < gm)  then
                     gm = gm>=0.1 and gm or 0
@@ -260,14 +271,14 @@ end
 
 function Light.draw()
     lg.setColor(1,1,1,0.5)
-    -- love.graphics.setBlendMode("multiply","premultiplied")
-    -- lg.draw( Light.canvas)
-    for _,quad in pairs(quads) do
-        -- if quad.active then
-            lg.draw( quad.canvas, quad.screen_x, quad.screen_y)
-        -- end
-    end
-    -- love.graphics.setBlendMode("alpha")
+    love.graphics.setBlendMode("multiply","premultiplied")
+    lg.draw( Light.canvas)
+    -- for _,quad in pairs(quads) do
+    --     if quad.active then
+    --         lg.draw( quad.canvas, quad.screen_x, quad.screen_y)
+    --     end
+    -- end
+    love.graphics.setBlendMode("alpha")
 end
 
 function Light.debug()

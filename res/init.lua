@@ -14,7 +14,11 @@ res.img = {
     backpack = lg.newImage(ip.."backpack.png"),
     slot = lg.newImage(ip.."slot.png"),
     hud_arrow = lg.newImage(ip.."arrow.png"),
-    -- eye_level = lg.newImage(ip.."eye_levels.png"),
+    grass_tile = lg.newImage(ip.."grass.png"),
+    walls_at = lg.newImage(ip.."walls_at.png"),
+    ground_at = lg.newImage(ip.."ground_at.png"),
+    -- autotile = lg.newImage(ip.."autotile.png"),
+    -- autotile_light = lg.newImage(ip.."autotile_light.png"),
     --
     cursor_eye1 = li.newImageData(ip.."eye100.png"),
     cursor_eye2 = li.newImageData(ip.."eye75.png"),
@@ -59,6 +63,10 @@ res.quads = {
     leaf = lg.newQuad( 96, 32, ts, ts, sw, sh ),
     light = lg.newQuad( 129, 33, ts-2, ts-2, sw, sh ),
     frame = lg.newQuad( 32, 64, ts, ts, sw, sh ),
+
+    head = lg.newQuad( ts*6, ts*2, ts, ts, sw, sh ),
+    ring = lg.newQuad( ts*7, ts*2, ts, ts, sw, sh ),
+    tail = lg.newQuad( ts*6, ts, ts, ts, sw, sh ),
     --16x SPRITES
     sprites = {
         small_grass = lg.newQuad( 0, 96, hts, hts, sw, sh ),

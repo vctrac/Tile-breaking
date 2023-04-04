@@ -37,7 +37,7 @@ Screen = {
 local RES = require 'res'
 DEBUG = {
     enabled = false,
-    lights = true,
+    lights = false,
     to_draw = {},
 }
 
@@ -62,7 +62,7 @@ GAME.canvas = lg.newCanvas(GAME.map_w*GAME.tile_size,GAME.map_h*GAME.tile_size)
 -- GAME.LightWorld = LightWorld:new()
 local drops = require 'item_drops'
 local Mouse = require 'Mouse'
-local MAP = require 'map'
+local Map = require 'map'
 -- local SandBox = require 'SandBox'
 local blurShader1 = love.graphics.newShader("blur1.fs")
 require 'light'
@@ -79,8 +79,8 @@ end
 function GAME.use_item( gx, gy)
     local item = Storage:get_item()
     if item then
-        local sx,sy = GAME.map:grid_to_world( gx, gy)
-        local tile = GAME.map:get_tile( gx, gy)
+        local sx,sy = MAP:grid_to_world( gx, gy)
+        local tile = MAP:get_tile( gx, gy)
         if tile and tile.id == 'air' then
             local ih = drops:add_fixed( item, sx, sy)
             if ih then
@@ -102,7 +102,7 @@ function GAME.get_item( x, y)
         Storage:add(it)
         -- printf( "%s was collected",it.name)
         it.dead = true
-        local tile = GAME.map:get_tile( it.gx, it.gy)
+        local tile = MAP:get_tile( it.gx, it.gy)
         tile.item = false
 
         return true
@@ -114,11 +114,11 @@ function GAME.has_item( x, y)
 end
 function GAME.whats_here(x,y,gx, gy)
     local i,t
-    local tile = GAME.map:get_tile(gx,gy)
-    -- local tid = GAME.map.get_name( tile.id)
-    local breakable = GAME.map.is_breakable(tile.id)
+    local tile = MAP:get_tile(gx,gy)
+    -- local tid = MAP.get_name( tile.id)
+    local breakable = MAP.is_breakable(tile.id)
 
-    if GAME.map.get_name(tile.id)=='air' then
+    if MAP.get_name(tile.id)=='air' then
         local item = drops:get_at(x, y)
         -- print(x, y)
         if item then
@@ -141,14 +141,14 @@ GAME.update_lights = function( )
     Light.refresh()
 end
 GAME.break_tile = function(x,y)
-    local t = GAME.map:get_tile(x,y)
-    local solid = GAME.map.is_solid(t.id)
-    local color = GAME.map.get_color(t.id)
+    local t = MAP:get_tile(x,y)
+    local solid = MAP.is_solid(t.id)
+    local color = MAP.get_color(t.id)
 
     -- Light.refresh()
-    if GAME.map:break_tile(x,y) then
+    if MAP:break_tile(x,y) then
         Light.refresh()
-        GAME.map:update_canvas()
+        MAP:update_canvas()
         -- SandBox:update_quads(x, y)
         -- if solid then
         --     for _=1,math.random(8,32) do
@@ -180,12 +180,12 @@ local time = 0
 local BackgroundImage
 function love.load()
     --Initialize Map dimensions
-    GAME.map = MAP:new( GAME.map_w, GAME.map_h)
+    MAP = Map:new( GAME.map_w, GAME.map_h)
 
     --Initialize Sandbox
     -- SandBox:init( GAME.map_w, GAME.map_h)
-    -- for _,s in pairs( GAME.map.units) do
-    --     SandBox:update_quads(s.x, s.y, GAME.map.is_solid(s.id))
+    -- for _,s in pairs( MAP.units) do
+    --     SandBox:update_quads(s.x, s.y, MAP.is_solid(s.id))
     -- end
     -- print(lg.getWidth(), Screen.w*0.5)
     --Initialize shaders based on Map dimensions
@@ -208,10 +208,11 @@ function love.load()
     -- Camera.focus = "mouse"
     Camera.focus = "mouse"
     Camera:lookAt(GAME.real_map_w*0.5,GAME.real_map_h*0.1)
-    -- Camera:set_boundaries( 0, GAME.map.w, 0,GAME.map.h)
+    -- Camera:set_boundaries( 0, MAP.w, 0,MAP.h)
 
     --Initialize Mouse and mouse_grid
     Mouse.init(GAME.map_w, GAME.map_h, GAME.tile_size)
+    Light.add(Mouse.id, Mouse.grid_position.x, Mouse.grid_position.y)
     for _=1,10 do
         Storage:add({use = true, name='light'}, true)
         -- Storage:add({use = true, name='blocker'}, true)
@@ -222,8 +223,8 @@ function love.load()
     -- lg.setBackgroundColor(0.1,0.25,0.6)
     -- lg.setDefaultFilter("nearest", "nearest")
     BackgroundImage = GradientMesh("vertical", {0,0.55,0.65}, {0,0.15,0.1})
-    -- GAME.map:add_sun( math.floor(GAME.map.w/64),1,1,{1,1,1}) --the fucking sun
-    GAME.map:update_canvas()
+    -- MAP:add_sun( math.floor(MAP.w/64),1,1,{1,1,1}) --the fucking sun
+    MAP:update_canvas()
     -- GAME.world:add(player, player.x, player.y, player.w, player.h)
     -- myShader = love.graphics.newShader("blur.fs")
     -- myShader = love.graphics.newShader("shader.fs")
@@ -270,7 +271,7 @@ function love.draw()
     
     Camera:attach()
     -- local wx,wy = Camera:worldCoords(Screen.center.x, Screen.center.y)
-    -- local cx,cy = GAME.map.center.x,GAME.map.center.y
+    -- local cx,cy = MAP.center.x,MAP.center.y
 
     -- for i=layers_num,1,-1 do
         
@@ -283,17 +284,17 @@ function love.draw()
         
     --     if i==layers_num then
     --         lg.setColor(0.2,0.2,0.2)
-    --         lg.draw( GAME.map.dark_canvas,xx,yy,0,sc,sc,cx, cy)
+    --         lg.draw( MAP.dark_canvas,xx,yy,0,sc,sc,cx, cy)
     --     else
     --         local rgb = 1-i*0.1
     --         lg.setColor(rgb,rgb,rgb)
-    --         lg.draw( GAME.map.light_canvas,xx,yy,0,sc,sc,cx, cy)
+    --         lg.draw( MAP.light_canvas,xx,yy,0,sc,sc,cx, cy)
     --     end
     -- end
     -- lg.setColor(1,1,1)
-    -- lg.draw( GAME.map.canvas)
-    -- lg.draw( GAME.map.sprite_canvas)
-    GAME.map:draw()
+    -- lg.draw( MAP.canvas)
+    -- lg.draw( MAP.sprite_canvas)
+    MAP:draw()
     -- Player.draw()
     
     -- if DEBUG.enabled then
@@ -320,10 +321,10 @@ function love.draw()
     -- end
     Mouse.draw()
     if DEBUG.lights then
-        --apply blur shader over light layer
-        -- lg.setShader(blurShader1)
+        -- apply blur shader over light layer
+        lg.setShader(blurShader1)
         Light.draw()
-        -- lg.setShader()
+        lg.setShader()
     end
 
     if DEBUG.enabled then
@@ -366,8 +367,8 @@ end
                                                                                      
 function love.keypressed(key, scancode, isrepeat)
     if key == "r" then
-        GAME.map = MAP:new( GAME.map_w, GAME.map_h)
-        GAME.map:update_canvas()
+        MAP = MAP:new( GAME.map_w, GAME.map_h)
+        MAP:update_canvas()
         Light.refresh()
         -- table.insert(Entities, Bat(Mouse.x, Mouse.y))
     end
@@ -376,7 +377,7 @@ function love.keypressed(key, scancode, isrepeat)
     end
     if key == "h" then
         local d = ({ "coal", "stone", "iron", "gold"})[math.random(4)]
-        local x,y = GAME.map:grid_to_world(Mouse.get_grid_position())
+        local x,y = MAP:grid_to_world(Mouse.get_grid_position())
         GAME.drop_item(d, x, y)
         -- local r = math.random(2,6)
         -- Label:new("used: health potion", 2)

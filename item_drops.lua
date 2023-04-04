@@ -35,7 +35,7 @@ function new_item:new( name, x, y)
     GAME.world:add(self, x,y,self.w, self.h)
     self.onGround = false
     self.type = 'collectable'
-    self.gx, self.gy = GAME.map:world_to_grid( x, y)
+    self.gx, self.gy = MAP:world_to_grid( x, y)
 end
 
 function new_item:destroy( )
@@ -97,11 +97,11 @@ function fixed_items:new(name,x,y)
     self.name = name
     self.id = UniqueId(name)
     self.type = 'collectable'
-    self.gx, self.gy = GAME.map:world_to_grid( x+1, y+1)
+    self.gx, self.gy = MAP:world_to_grid( x+1, y+1)
 end
 
 function fixed_items:destroy(mx, my)
-    local t = GAME.map:get_tile( self.gx, self.gy)
+    local t = MAP:get_tile( self.gx, self.gy)
     t.item = nil
 end
 
@@ -113,28 +113,28 @@ function light:new( name,x,y)
     -- print(self.name,x,y)
     self.use = true
     Light.add( self.id, self.gx, self.gy, 1.1)
-    GAME.map:update_canvas()
+    MAP:update_canvas()
 end
 -- function light:grab(mx, my)
---     self.gx, self.gy = GAME.map:world_to_grid( mx, my)
---     local t = GAME.map:remove_light( self.gx,self.gy)
+--     self.gx, self.gy = MAP:world_to_grid( mx, my)
+--     local t = MAP:remove_light( self.gx,self.gy)
 --     self.g = true
 -- end
 function light:destroy( )
     Light.remove(self.id)
-    GAME.map:update_canvas()
+    MAP:update_canvas()
     print('light source removed')
 end
 -- function light:drop(mx, my)
---     local gx, gy = GAME.map:world_to_grid( mx, my)
---     local tile = GAME.map:get_tile( gx, gy)
+--     local gx, gy = MAP:world_to_grid( mx, my)
+--     local tile = MAP:get_tile( gx, gy)
 
 --     if tile.id == 'air' and not tile.item then
 --         self.gx, self.gy = gx, gy
 --         tile.item = true
 --         self.g = false  
---         local t = GAME.map:add_light( gx, gy)
---         self.x, self.y = GAME.map:grid_to_world(t.x, t.y)
+--         local t = MAP:add_light( gx, gy)
+--         self.x, self.y = MAP:grid_to_world(t.x, t.y)
 --         t.item = true
 --     end
 -- end
@@ -145,7 +145,7 @@ function blocker:new( name,x,y)
     blocker.super.new( self, name, x, y)
     self.is_map_obj = true
     -- self.use = true
-    local t = GAME.map:insert_tile( self.gx, self.gy, 'blocker')
+    local t = MAP:insert_tile( self.gx, self.gy, 'blocker')
     self.fail = not (t)
 end
 
@@ -159,10 +159,10 @@ function bomb:destroy()
     -- self:action(0)
 end
 function bomb:action( time)
-    timer.after((time or 2.8),function() GAME.map:add_light( self.gx, self.gy, 1, {1,1,0.8}) end)
+    timer.after((time or 2.8),function() MAP:add_light( self.gx, self.gy, 1, {1,1,0.8}) end)
     timer.after(3,function()
         self:explode()
-        -- GAME.map:remove_light( self.gx,self.gy)
+        -- MAP:remove_light( self.gx,self.gy)
         GAME.sfx.explosion:play()
     end)
 end
@@ -171,7 +171,7 @@ function bomb:explode()
         for x=-1,1 do
             local i = GAME.delete_item_from_map( self.gx+x, self.gy+y)
             -- i.dead = true
-            local t = GAME.map:break_tile(self.gx+x, self.gy+y)
+            local t = MAP:break_tile(self.gx+x, self.gy+y)
         end
     end
     self.dead = true
@@ -197,7 +197,7 @@ local item = {
         return it
     end,
     -- remove = function( self, item)
-    --     local tile = GAME.map:get_tile( item.gx, item.gy)
+    --     local tile = MAP:get_tile( item.gx, item.gy)
     --     if tile.id == 'air' then
     --         print("destroy")
     --         item:destroy()
